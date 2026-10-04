@@ -1,0 +1,453 @@
+const qs = s => document.querySelector(s);
+const qsa = s => document.querySelectorAll(s);
+const csrfToken = qs('meta[name="csrf-token"]')?.content || '';
+const csrfHeaders = csrfToken ? {'X-CSRF-Token': csrfToken, 'X-Requested-With':'XMLHttpRequest'} : {'X-Requested-With':'XMLHttpRequest'};
+// ID lookup helper: all $() callers pass element IDs, not CSS selectors.
+const $ = id => document.getElementById(id);
+
+function esc(value) {
+  return String(value ?? '').replace(/[&<>\'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+}
+function arr(value) { return Array.isArray(value) ? value : []; }
+function setBusy(btn, busy, label) { if (!btn) return; btn.disabled = busy; if (label) btn.dataset.originalLabel ||= btn.innerHTML; btn.innerHTML = busy ? label : (btn.dataset.originalLabel || btn.innerHTML); }
+function cloneFormData(source) { const out = new FormData(); for (const [key, value] of source.entries()) out.append(key, value); return out; }
+async function jsonFetch(url, options = {}) {
+  const merged = {...options, headers: {...csrfHeaders, ...(options.headers || {})}};
+  const response = await fetch(url, merged);
+  let data = {};
+  try { data = await response.json(); } catch (_) { data = {error: `Server returned ${response.status}`}; }
+  if (response.status === 401 && !url.includes('/login')) {
+    const next = encodeURIComponent(window.location.pathname + window.location.search);
+    window.location.assign('/login?next=' + next);
+  }
+  if (!response.ok) {
+    const err = new Error(data.error || `Request failed (${response.status})`);
+    err.data = data;
+    err.status = response.status;
+    throw err;
+  }
+  return data;
+}
+
+qsa('[data-view]').forEach(btn => btn.addEventListener('click', () => showView(btn.dataset.view)));
+function showView(view) {
+  const target = qs('#view-' + view); if (!target) return;
+  qsa('.view').forEach(x => x.classList.remove('active'));
+  target.classList.add('active');
+  qsa('.nav').forEach(x => x.classList.toggle('active', x.dataset.view === view));
+  const titles = {intake:'Patient intake', dashboard:'Doctor dashboard', ocr:'Gemini reports / OCR', analytics:'Analytics'};
+  if ($('pageTitle')) $('pageTitle').textContent = titles[view] || 'Swastya Assist';
+  if (view === 'dashboard') loadDashboard();
+  if (view === 'analytics') loadAnalytics();
+  if (view === 'ocr') checkGemini();
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+
+// Dashboard / queue
+async function loadDashboard() {
+  try { const box=$('dashboardError'); if(box) box.classList.add('hidden');
+    const [a, casesData] = await Promise.all([
+      jsonFetch('/api/analytics'),
+      jsonFetch('/api/cases?limit=200')
+    ]);
+    $('kpiOpen').textContent = Math.max(0, a.total - (a.reviewed || 0));
+    $('kpiUrgent').textContent = a.urgent ?? 0;
+    $('kpiReviewed').textContent = a.reviewed ?? 0;
+    $('kpiRate').textContent = `${a.review_rate ?? 0}%`;
+    renderCases(casesData, $('riskFilter')?.value || '');
+  } catch (e) { console.error(e); const box=$('dashboardError'); if(box){box.textContent=e.message;box.classList.remove('hidden');} }
+}
+function renderCases(data, filter = '') {
+  const container = $('dashboardQueue'); if (!container) return;
+  window.__cases = data.cases || [];
+  const rows = window.__cases.filter(c => !filter || c.risk === filter);
+    let html = '<div class="table-row header"><span>Patient</span><span>Risk</span><span>Status</span><span>Language</span><span>Action</span></div>';
+    rows.forEach(c => {
+      html += `<div class="table-row"><span><b>${esc(c.patient_name || c.patient_ref)}</b><br><small>${esc(c.patient_ref)} · ${esc((c.created_at || '').slice(0,16).replace('T',' '))}</small></span><span class="risk ${String(c.risk).toLowerCase().replaceAll(' ','-')}">${esc(c.risk)}</span><span>${esc(c.status)}</span><span>${esc(c.language)}</span><button type="button" class="review-btn" data-case-id="${esc(c.id)}">Review →</button></div>`;
+    });
+  container.innerHTML = html + (rows.length ? '' : '<p class="empty">No encounters match this filter.</p>');
+}
+async function fetchCases(filter = '') {
+  try { renderCases(await jsonFetch('/api/cases?limit=200'), filter); }
+  catch (e) { const container=$('dashboardQueue'); if(container) container.innerHTML = `<p class="empty error-text">${esc(e.message)}</p>`; }
+}
+$('riskFilter')?.addEventListener('change', e => renderCases({cases: window.__cases || []}, e.target.value));
+$('refreshDashboard')?.addEventListener('click', () => loadDashboard());
+
+document.addEventListener('click', e => {
+  const btn = e.target.closest('[data-case-id]');
+  if (btn) {
+    e.preventDefault();
+    if (window.__reviewDirty && !confirm('You have unsaved reviewer changes. Open another encounter and discard them?')) return;
+    window.__reviewDirty = false;
+    loadCase(btn.dataset.caseId);
+  }
+});
+
+async function loadCase(id) {
+  try {
+    const c = await jsonFetch('/api/cases/' + encodeURIComponent(id));
+    window.__activeCaseId = id;
+    $('detail')?.classList.remove('hidden');
+    const n = c.ai_note || {};
+    const evidenceBase = arr(c.evidence_review).length ? arr(c.evidence_review) : arr(n.evidence).map(x => ({item:x.item || '', source:x.source || 'Not provided', status:'Pending', note:''}));
+    const evidence = evidenceBase.map((x, i) => `<div class="evidence-review-item" data-evidence-index="${i}"><div><b>${esc(x.item || '')}</b><small>Source: ${esc(x.source || 'Unknown')}</small></div><div class="evidence-controls"><select class="evidence-status" aria-label="Evidence review status"><option ${x.status==='Pending'?'selected':''}>Pending</option><option ${x.status==='Verified'?'selected':''}>Verified</option><option ${x.status==='Rejected'?'selected':''}>Rejected</option><option ${x.status==='Unclear'?'selected':''}>Unclear</option></select><input class="evidence-note" maxlength="500" value="${esc(x.note || '')}" placeholder="Reviewer note (optional)"></div></div>`).join('') || '<p class="muted">No explicit source mapping returned. Verify the original inputs.</p>';
+    const followUps = arr(c.follow_up_answers).length ? arr(c.follow_up_answers) : arr(n.follow_up_questions).map(q => ({question:q, answer:'', source:'Reviewer', verified:false}));
+    const reportFields = arr(n.extracted_report_fields).map(x => typeof x === 'object' ? `<li><b>${esc(x.field || x.name || 'Value')}</b>: ${esc(x.value || x.text || '')} <small>${esc(x.source || 'Uploaded report')}</small></li>` : `<li>${esc(x)}</li>`).join('') || '<li>No report fields extracted.</li>';
+    const reportLink = c.report_filename ? `<a class="secondary inline-btn" href="/api/cases/${encodeURIComponent(id)}/report" target="_blank" rel="noopener">Open original report ↗</a>` : '<span class="muted">No uploaded report</span>';
+    $('detailBody').innerHTML = `
+      <div class="detailGrid">
+        <div class="detailBlock">
+          <div class="detail-kicker">PATIENT</div><h3>${esc(c.patient_ref)} <span class="source-pill">${esc(c.source || 'Intake')}</span></h3>
+          <p><b>Name:</b> ${esc(c.patient_name || '—')} · <b>Age:</b> ${esc(c.age ?? '—')} · <b>Gender:</b> ${esc(c.gender || '—')}</p>
+          <p><b>Language:</b> ${esc(c.language || '—')} · <b>Scenario:</b> ${esc(c.scenario || '—')}</p>
+          <p><b>Facility/locality:</b> ${esc(c.address || '—')}</p>
+          <p><b>Final priority:</b> <span class="risk ${String(c.final_risk || c.risk).toLowerCase().replaceAll(' ','-')}">${esc(c.final_risk || c.risk)}</span> · <b>Automated:</b> ${esc(c.ai_risk || 'Needs review')}</p>
+          ${c.risk_override_reason ? `<p><b>Priority change reason:</b> ${esc(c.risk_override_reason)}</p>` : ''}
+          <h4>Patient narrative</h4><p class="preline">${esc(c.symptoms || '—')}</p>
+          <h4>Report text</h4><p class="preline">${esc(c.report_text || '—')}</p>
+          <h4>Uploaded report</h4><p>${esc(c.report_filename || 'No uploaded report')}</p>${reportLink}
+        </div>
+        <div class="detailBlock">
+          <div class="detail-kicker">AI TRIAGE PACKET</div><h3>${esc(n.risk_category || c.risk || 'Needs review')}</h3>
+          <p>${esc(n.summary || 'No summary returned.')}</p>
+          <h4>Timeline</h4><p>${esc(n.timeline || 'Timeline requires reviewer verification.')}</p>
+          <h4>Key details</h4><ul>${arr(n.key_details).map(x => `<li>${esc(typeof x === 'object' ? (x.value || x.text || JSON.stringify(x)) : x)}</li>`).join('') || '<li>None returned.</li>'}</ul>
+          <h4>Missing / unclear</h4><ul>${arr(n.missing_information).map(x => `<li>${esc(x)}</li>`).join('') || '<li>None returned.</li>'}</ul>
+          <h4>Suggested follow-up questions</h4><ul>${arr(n.follow_up_questions).map(x => `<li>${esc(x)}</li>`).join('') || '<li>None returned.</li>'}</ul>
+          <h4>Follow-up answers</h4><div class="followup-list">${followUps.map((x,i) => `<div class="followup-item" data-followup-index="${i}"><b>${esc(x.question || '')}</b><textarea class="followup-answer" maxlength="1200" placeholder="Record patient/clinician answer">${esc(x.answer || '')}</textarea><label class="tiny-check"><input class="followup-verified" type="checkbox" ${x.verified?'checked':''}> Verified</label></div>`).join('') || '<p class="muted">No follow-up questions returned.</p>'}</div>
+          <h4>Urgency signals</h4><ul>${arr(n.risk_signals).map(x => `<li><b>${esc(x.label || 'Signal')}</b>: ${esc(x.term || x.detail || '')}</li>`).join('') || '<li>No signal returned.</li>'}</ul>
+          <h4>Report extraction</h4><ul>${reportFields}</ul>
+        </div>
+      </div>
+      <div class="evidence-panel"><h3>Evidence traceability</h3><p>Every AI statement must be checked against the original patient input or uploaded report.</p><div class="evidence-review-list">${evidence}</div></div>
+      <div class="review-decision"><div class="detail-kicker">HUMAN REVIEW</div><h3>Reviewer decision</h3><p class="muted">AI output is advisory. A qualified reviewer confirms, modifies, escalates or requests more information.</p>
+        <form class="reviewForm" id="reviewForm"><input type="hidden" name="csrf_token" value="${esc(csrfToken)}">
+          <label>Reviewer status<select name="status"><option ${c.status==='Needs review'?'selected':''}>Needs review</option><option ${c.status==='Reviewed'?'selected':''}>Reviewed</option><option ${c.status==='Escalated'?'selected':''}>Escalated</option><option ${c.status==='Needs more information'?'selected':''}>Needs more information</option></select></label>
+          <label>Final operational priority<select name="final_risk"><option ${c.final_risk==='Routine review'?'selected':''}>Routine review</option><option ${c.final_risk==='Priority review'?'selected':''}>Priority review</option><option ${c.final_risk==='Urgent review'?'selected':''}>Urgent review</option><option ${c.final_risk==='Needs review'?'selected':''}>Needs review</option><option ${c.final_risk==='Insufficient information'?'selected':''}>Insufficient information</option></select></label>
+          <p class="muted"><b>Automated priority:</b> ${esc(c.ai_risk || c.risk || 'Needs review')} · changing it requires a reason.</p>
+          <label>Risk-change reason<textarea name="risk_override_reason" maxlength="2000" placeholder="Required only when changing the automated priority.">${esc(c.risk_override_reason || '')}</textarea></label>
+          <label>Reviewer note<textarea name="reviewer_note" maxlength="5000" placeholder="Document verification, handoff or administrative next step.">${esc(c.reviewer_note || '')}</textarea></label>
+          <label class="consent-check"><input type="checkbox" name="urgent_verified" value="1"> I checked the original patient/report information. Required before saving an <b>Urgent review</b> decision.</label>
+          <div class="form-grid"><label>Referral / handoff status<select name="referral_status">${['Not required','Draft','Ready','Sent','Acknowledged','Completed'].map(v=>`<option ${c.referral_status===v?'selected':''}>${v}</option>`).join('')}</select></label><label>Referral destination<input name="referral_destination" maxlength="500" value="${esc(c.referral_destination || '')}" placeholder="Synthetic receiving facility"></label></div>
+          <div class="contact-panel"><div><b>Urgent patient contact</b><p class="muted">Optional. For an urgent case, record contact consent and a synthetic/demo number before initiating a call.</p></div><label class="consent-check"><input type="checkbox" name="contact_patient" ${c.contact_consent && c.contact_phone ? 'checked' : ''}> Contact patient/caregiver after this review</label><div class="form-grid"><label>Contact phone<input name="contact_phone" inputmode="tel" autocomplete="tel" maxlength="24" value="${esc(c.contact_phone || '')}" placeholder="+1-555-010-0100"></label><label class="consent-check"><input type="checkbox" name="contact_consent" ${c.contact_consent ? 'checked' : ''}> Contact consent recorded</label></div>${c.contact_phone && c.contact_consent && c.final_risk === 'Urgent review' ? `<button type="button" id="callPatientBtn" class="secondary">Call patient ↗</button><span id="contactState" class="status">${(c.contact_attempts||[]).length ? `${(c.contact_attempts||[]).length} call attempt(s) recorded` : 'No call attempt recorded'}</span>` : ''}</div>
+          <div class="review-actions"><button class="primary" type="submit">Save reviewer decision</button><span id="reviewSaveState" class="status">Not saved</span></div>
+        </form>
+      </div>`;
+    const reviewForm = $('reviewForm');
+    if (reviewForm) {
+      reviewForm.dataset.savedStatus = reviewForm.elements.status.value;
+      reviewForm.dataset.savedNote = reviewForm.elements.reviewer_note.value;
+      reviewForm.addEventListener('input', () => {
+        window.__reviewDirty = true;
+        const state = $('reviewSaveState');
+        if (state && state.textContent === 'Saved just now') { state.textContent = 'Unsaved changes'; state.className = 'status'; }
+      });
+      reviewForm.addEventListener('change', () => {
+        window.__reviewDirty = true;
+        const state = $('reviewSaveState');
+        if (state && state.textContent === 'Saved just now') { state.textContent = 'Unsaved changes'; state.className = 'status'; }
+      });
+      reviewForm.addEventListener('submit', saveReview);
+      $('callPatientBtn')?.addEventListener('click', async () => {
+        const state = $('contactState');
+        try {
+          const x = await jsonFetch('/api/cases/' + encodeURIComponent(window.__activeCaseId) + '/contact', {method:'POST'});
+          if (!x.ok) throw new Error(x.error || 'Contact could not be initiated.');
+          if (state) { state.textContent = 'Call initiated'; state.className = 'status ready'; }
+          window.location.href = x.tel_uri;
+        } catch (err) {
+          if (state) { state.textContent = err.message || 'Contact failed'; state.className = 'status error'; }
+        }
+      });
+    }
+  } catch (e) { const box=$('dashboardError'); if(box){box.textContent=e.message;box.classList.remove('hidden');} }
+}
+async function saveReview(e) {
+  e.preventDefault();
+  const form = e.currentTarget, btn = form.querySelector('button[type=submit]'), state = $('reviewSaveState');
+  if (!window.__activeCaseId) { if (state) { state.textContent='No case selected'; state.className='status error'; } return; }
+  setBusy(btn, true, 'Saving…');
+  if (state) { state.textContent = 'Saving…'; state.className = 'status'; }
+  try {
+    const detailRoot = $('detailBody') || document;
+    const evidenceReview = [...detailRoot.querySelectorAll('.evidence-review-item')].map(item => ({
+      item: item.querySelector('b')?.textContent?.trim() || '',
+      source: item.querySelector('small')?.textContent?.replace(/^Source:\s*/i,'').trim() || 'Not provided',
+      status: item.querySelector('.evidence-status')?.value || 'Pending',
+      note: item.querySelector('.evidence-note')?.value || ''
+    }));
+    const followUpAnswers = [...detailRoot.querySelectorAll('.followup-item')].map(item => ({
+      question: item.querySelector('b')?.textContent?.trim() || '',
+      answer: item.querySelector('.followup-answer')?.value || '',
+      source: 'Reviewer',
+      verified: Boolean(item.querySelector('.followup-verified')?.checked)
+    }));
+    form.querySelectorAll('input[name="evidence_review"], input[name="follow_up_answers"]').forEach(x => x.remove());
+    const evidenceInput = document.createElement('input'); evidenceInput.type='hidden'; evidenceInput.name='evidence_review'; evidenceInput.value=JSON.stringify(evidenceReview); form.appendChild(evidenceInput);
+    const followInput = document.createElement('input'); followInput.type='hidden'; followInput.name='follow_up_answers'; followInput.value=JSON.stringify(followUpAnswers); form.appendChild(followInput);
+    // Use URL-encoded form data for the reviewer route so Flask parses it
+    // deterministically on every local/proxy/server combination. Send the
+    // CSRF token in BOTH the form body and request header.
+    const fd = new FormData(form);
+    const body = new URLSearchParams();
+    for (const [key, value] of fd.entries()) body.append(key, String(value));
+    const x = await jsonFetch('/api/cases/' + encodeURIComponent(window.__activeCaseId) + '/review', {
+      method:'POST',
+      headers:{'X-Requested-With':'XMLHttpRequest','Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'},
+      body
+    });
+    if (!x.ok) throw new Error(x.error || 'Reviewer decision was not saved.');
+    if (state) { state.textContent = 'Saved just now'; state.className = 'status ready'; }
+    form.dataset.savedStatus = form.elements.status.value;
+    form.dataset.savedNote = form.elements.reviewer_note.value;
+    form.dataset.savedRisk = form.elements.final_risk.value;
+    form.dataset.savedOverride = form.elements.risk_override_reason.value;
+    form.dataset.savedReferralStatus = form.elements.referral_status.value;
+    form.dataset.savedReferralDestination = form.elements.referral_destination.value;
+    window.__reviewDirty = false;
+    await loadDashboard();
+    await loadCase(window.__activeCaseId);
+  } catch (err) {
+    console.error('Reviewer save failed:', err);
+    if (state) { state.textContent = err.message || 'Reviewer decision could not be saved.'; state.className = 'status error'; }
+  } finally { setBusy(btn, false); }
+}
+window.addEventListener('beforeunload', e => {
+  if (window.__reviewDirty) { e.preventDefault(); e.returnValue = ''; }
+});
+
+$('closeDetailBtn')?.addEventListener('click', () => { if(window.__reviewDirty && !confirm('Discard unsaved reviewer changes?')) return; window.__reviewDirty=false; $('detail')?.classList.add('hidden'); });
+
+$('printPacketBtn')?.addEventListener('click', async () => {
+  if (!window.__activeCaseId) return;
+  try {
+    const x = await jsonFetch('/api/cases/' + encodeURIComponent(window.__activeCaseId) + '/packet');
+    const p = x.packet, n = p.ai || {}, w = window.open('', '_blank');
+    if (!w) { alert('Allow pop-ups to print the packet.'); return; }
+    const list = a => arr(a).map(v => `<li>${esc(typeof v === 'object' ? (v.value || v.text || JSON.stringify(v)) : v)}</li>`).join('') || '<li>None</li>';
+    w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Swastya Assist Reviewer Packet</title><link rel="stylesheet" href="/static/packet.css?v=19.0"></head><body><h1>Swastya Assist Reviewer Packet</h1><p class="muted">${esc(p.disclaimer)}</p><div class="box"><h2>Patient</h2><b>${esc(p.patient.reference)}</b><br>${esc(p.patient.name)} · Age ${esc(p.patient.age)} · ${esc(p.patient.gender)}<br>Language: ${esc(p.patient.language)} · Scenario: ${esc(p.patient.scenario)}</div><div class="box"><h2>AI summary</h2><p>${esc(n.summary || '')}</p><h3>Timeline</h3><p>${esc(n.timeline || '')}</p><h3>Key details</h3><ul>${list(n.key_details)}</ul><h3>Missing information</h3><ul>${list(n.missing_information)}</ul><h3>Follow-up questions</h3><ul>${list(n.follow_up_questions)}</ul><h3>Urgency signals</h3><ul>${list((n.risk_signals||[]).map(v => (v.label||'Signal')+': '+(v.term||v.detail||'')))}</ul></div><div class="box"><h2>Human review</h2><p>Status: ${esc(p.status)}</p><p>${esc(p.reviewer_note || 'No reviewer note yet.')}</p></div><div class="safe">AI-generated advisory documentation. Final clinical decisions remain with qualified healthcare personnel.</div></body></html>`);
+    w.document.close(); w.focus(); setTimeout(() => w.print(), 350);
+  } catch (e) { alert(e.message); }
+});
+
+// Patient intake is handled here so the same API/error/rendering path is used
+// by intake and report/OCR workflows.
+const triageForm = $('triageForm');
+let __lastTriagePayload = null;
+let __lastTriageRetryToken = '';
+let __triageInFlight = false;
+let __triageRequestId = '';
+function newAiRequestId(){ return (crypto?.randomUUID ? crypto.randomUUID().replaceAll('-','') : ('req'+Date.now()+Math.random().toString(36).slice(2,12))); }
+async function submitTriage(form, out, btn, retry=false) {
+  if (__triageInFlight) return;
+  __triageInFlight = true;
+  setBusy(btn, true, retry ? 'Retrying AI…' : 'Processing…');
+  out?.classList.remove('hidden');
+  if (out) out.innerHTML = '<div class="loading-card"><b>Processing AI review…</b><span>One failed AI request stops this processing chain. No duplicate API calls are made.</span></div>';
+  try {
+    if (!retry) { __triageRequestId = newAiRequestId(); __lastTriageRetryToken = ''; }
+    const payload = retry && __lastTriagePayload ? cloneFormData(__lastTriagePayload) : new FormData(form);
+    payload.set('_ai_request_id', __triageRequestId);
+    if (retry) payload.set('_ai_retry_token', __lastTriageRetryToken);
+    else { __lastTriagePayload = cloneFormData(payload); }
+    const x = await jsonFetch('/api/triage', {method:'POST', headers:{'X-Requested-With':'XMLHttpRequest'}, body:payload});
+    renderNote(x.note || {}, x.warning, out);
+    __lastTriagePayload = null; __lastTriageRetryToken = ''; form.reset(); triageUpload.clear();
+    if (typeof window.__swastyaResetVoice === 'function') window.__swastyaResetVoice();
+    await loadDashboard();
+  } catch (err) {
+    const canRetry = Boolean(err.data?.retryable && err.data?.retry_token);
+    if (canRetry) __lastTriageRetryToken = err.data.retry_token;
+    if (out) out.innerHTML = `<div class="error-card"><b>AI processing stopped</b><span>${esc(err.message)}</span>${canRetry ? '<button type="button" id="retryTriageBtn" class="secondary compact retry-btn">↻ Retry same patient input</button><small>This is the one allowed retry for this input.</small>' : '<small>No further retry is available. Start a new patient input.</small>'}</div>`;
+    if (canRetry) $('retryTriageBtn')?.addEventListener('click', () => submitTriage(form, out, btn, true), {once:true});
+  } finally { __triageInFlight = false; setBusy(btn, false); }
+}
+if (triageForm) triageForm.addEventListener('submit', async e => { e.preventDefault(); await submitTriage(e.currentTarget, $('result'), e.currentTarget.querySelector('button[type=submit]')); });
+function renderNote(n, warning, el = $('result')) {
+  if (!el) return;
+  el.classList.remove('hidden');
+  const manualFallback = n.processing_mode === 'Manual fallback';
+  el.innerHTML = `<div class="success-banner"><b>${manualFallback ? 'Case saved for manual review' : 'Reviewer triage note created'}</b><span>${manualFallback ? 'Gemini was unavailable; no AI output was used. The case remains in the qualified-review workflow.' : 'Case is now in the review queue.'}</span></div><div class="metric"><b>Risk:</b> ${esc(n.risk_category || 'Needs review')}</div><div class="metric"><b>Urgency signals:</b> ${arr(n.risk_signals).length}</div><h3>Structured summary</h3><p>${esc(n.summary || '')}</p><h3>Timeline</h3><p>${esc(n.timeline || '')}</p><h3>Key details</h3><ul>${arr(n.key_details).map(x=>`<li>${esc(typeof x==='object'?(x.value||x.text||JSON.stringify(x)):x)}</li>`).join('')||'<li>None returned.</li>'}</ul><h3>Missing information</h3><ul>${arr(n.missing_information).map(x=>`<li>${esc(x)}</li>`).join('')||'<li>None returned.</li>'}</ul><h3>Follow-up questions</h3><ul>${arr(n.follow_up_questions).map(x=>`<li>${esc(x)}</li>`).join('')||'<li>None returned.</li>'}</ul>${warning?`<p class="muted">${esc(warning)}</p>`:''}<p class="muted"><b>Reviewer handoff:</b> ${esc(n.handoff || 'Verify before use.')}</p>`;
+}
+
+// Voice: real recording + browser transcript + optional Gemini transcript/translation.
+const voice = $('voice'), voiceStop = $('voiceStop'), voiceTools = $('voiceTools'), voicePlayback = $('voicePlayback'), voiceAi = $('voiceAi');
+let mediaRec = null, speechRec = null, mediaStream = null, micActive = false, audioChunks = [], recordedBlob = null, recordingStartedAt = 0, timerHandle = null, liveFinal = '', lastObjectUrl = null, voiceBaseSymptoms = '';
+function voiceStatus(message, kind=''){ const el=$('voiceDiagnostic'); if(el){el.textContent=message;el.className='status-box '+kind;} }
+function setTimer() { if (!recordingStartedAt || !$('recordingTimer')) return; const sec=Math.floor((Date.now()-recordingStartedAt)/1000); $('recordingTimer').textContent = `${String(Math.floor(sec/60)).padStart(2,'0')}:${String(sec%60).padStart(2,'0')}`; }
+function supportedMime() {
+  if (!window.MediaRecorder) return '';
+  const options=['audio/webm;codecs=opus','audio/webm','audio/mp4','audio/ogg;codecs=opus'];
+  return options.find(x=>MediaRecorder.isTypeSupported?.(x)) || '';
+}
+function resetVoiceUI() {
+  try { speechRec?.abort(); } catch (_) {}
+  try { mediaRec?.stop(); } catch (_) {}
+  mediaStream?.getTracks().forEach(t=>t.stop());
+  micActive=false; audioChunks=[]; recordedBlob=null; liveFinal=''; recordingStartedAt=0; __lastVoiceRetryToken=''; __voiceRequestId='';
+  clearInterval(timerHandle); timerHandle=null;
+  if (lastObjectUrl) URL.revokeObjectURL(lastObjectUrl); lastObjectUrl=null;
+  if (voicePlayback) { voicePlayback.pause(); voicePlayback.removeAttribute('src'); voicePlayback.load(); voicePlayback.classList.add('hidden'); }
+  voice?.classList.remove('hidden'); voiceStop?.classList.add('hidden'); voiceTools?.classList.add('hidden');
+  if ($('recordingStatus')) $('recordingStatus').textContent='Recording ready';
+  if ($('recordingTimer')) $('recordingTimer').textContent='00:00';
+  if ($('liveTranscript')) $('liveTranscript').textContent='Nothing recorded yet.';
+  if ($('aiTranslation')) $('aiTranslation').textContent='Waiting for recording.';
+  if (voiceAi) voiceAi.disabled=true;
+}
+async function startMic() {
+  if (micActive) return;
+  if (!window.isSecureContext && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') { voiceStatus('Microphone requires HTTPS, localhost, or 127.0.0.1.', 'error'); return; }
+  if (!navigator.mediaDevices?.getUserMedia) { voiceStatus('Microphone API is unavailable. Open this app on http://127.0.0.1:5000 or HTTPS and use current Chrome/Edge.', 'error'); return; }
+  if (!window.MediaRecorder) { voiceStatus('Audio recording is not supported by this browser. Use current Chrome or Edge.', 'error'); return; }
+  try {
+    if (navigator.permissions?.query) { try { const perm = await navigator.permissions.query({name:'microphone'}); if (perm.state === 'denied') { voiceStatus('Microphone permission is blocked. Click the lock/site-settings icon in Chrome/Edge, allow Microphone, then reload.', 'error'); return; } } catch (_) {} }
+    voiceStatus('Requesting microphone permission…');
+    mediaStream = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});
+    audioChunks=[]; recordedBlob=null; liveFinal=''; voiceBaseSymptoms=$('symptoms')?.value?.trim() || '';
+    const mime = supportedMime();
+    mediaRec = new MediaRecorder(mediaStream, mime ? {mimeType:mime} : undefined);
+    voiceStatus(`Microphone connected. Recording format: ${mediaRec.mimeType || 'browser default'}.`, 'ok');
+    mediaRec.ondataavailable = e => { if (e.data?.size) audioChunks.push(e.data); };
+    mediaRec.onerror = e => { console.error(e); $('recordingStatus').textContent='Recording error'; voiceStatus('Recording failed. Check microphone permission and browser site settings.', 'error'); };
+    mediaRec.onstop = () => {
+      const type = mediaRec.mimeType || mime || 'audio/webm';
+      recordedBlob = new Blob(audioChunks, {type});
+      if (lastObjectUrl) URL.revokeObjectURL(lastObjectUrl);
+      lastObjectUrl = URL.createObjectURL(recordedBlob);
+      voicePlayback.src = lastObjectUrl; voicePlayback.load(); voicePlayback.classList.remove('hidden');
+      mediaStream?.getTracks().forEach(t=>t.stop()); mediaStream=null;
+      $('recordingStatus').textContent = recordedBlob.size ? 'Recording ready — press Play or AI transcribe' : 'No audio captured'; voiceStatus(recordedBlob.size ? 'Recording captured successfully. You can play it or send it to Gemini.' : 'No audio captured.', recordedBlob.size ? 'ok' : 'error');
+      if (voiceAi) voiceAi.disabled = !recordedBlob.size;
+    };
+    mediaRec.start(250);
+    if ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window) {
+      const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+      speechRec = new SR(); speechRec.lang=$('voiceSourceLanguage').value; speechRec.interimResults=true; speechRec.continuous=true;
+      speechRec.onresult = e => { let interim=''; for(let i=e.resultIndex;i<e.results.length;i++){const t=e.results[i][0].transcript.trim(); if(e.results[i].isFinal && t) liveFinal += (liveFinal?' ':'')+t; else interim += (interim?' ':'')+t;} $('liveTranscript').textContent=(liveFinal+' '+interim).trim() || 'Listening…'; };
+      speechRec.onerror = e => { if(e.error!=='aborted' && e.error!=='no-speech') $('liveTranscript').textContent='Live browser transcript unavailable; recording continues.'; };
+      speechRec.onend = () => { if(micActive){ try{speechRec.start();}catch(_){ } } };
+      try { speechRec.start(); } catch (_) {}
+    } else $('liveTranscript').textContent='Live browser transcription is not supported here. The recording can still be sent to Gemini.';
+    micActive=true; voice.classList.add('hidden'); voiceStop.classList.remove('hidden'); voiceTools.classList.remove('hidden');
+    $('recordingStatus').textContent='Recording…'; voiceStatus('Recording… speak now. Click Stop when finished. Your browser transcript will be kept even if Gemini is busy.', 'ok'); recordingStartedAt=Date.now(); timerHandle=setInterval(setTimer,500);
+    if (voiceAi) voiceAi.disabled=true;
+  } catch (e) { console.error(e); mediaStream?.getTracks().forEach(t=>t.stop()); voiceStatus(`Microphone could not start: ${e.name || 'Error'} — ${e.message || 'permission denied'}.`, 'error'); }
+}
+function stopMic() {
+  if (!micActive) return;
+  micActive=false; clearInterval(timerHandle); timerHandle=null; setTimer();
+  try { speechRec?.stop(); } catch (_) {};
+  try { if(mediaRec && mediaRec.state !== 'inactive') mediaRec.stop(); } catch (_) {}
+  voice.classList.remove('hidden'); voiceStop.classList.add('hidden'); $('recordingStatus').textContent='Finalizing recording…'; voiceStatus('Finalizing recording…', 'ok');
+  if (liveFinal) $('symptoms').value = (voiceBaseSymptoms ? voiceBaseSymptoms+'\n' : '') + liveFinal;
+}
+voice?.addEventListener('click', startMic); voiceStop?.addEventListener('click', stopMic);
+$('voiceSourceLanguage')?.addEventListener('change', e => { if (speechRec && micActive) { try{speechRec.stop();}catch(_){} setTimeout(()=>{if(micActive){speechRec.lang=e.target.value;try{speechRec.start();}catch(_){}}},150); } });
+let __lastVoiceRetryToken = '';
+let __voiceInFlight = false;
+let __voiceRequestId = '';
+voiceAi?.addEventListener('click', async () => {
+  if (__voiceInFlight) return;
+  if (!recordedBlob) { alert('Stop the recording first, then press AI transcribe + translate.'); return; }
+  if (!__lastVoiceRetryToken) __voiceRequestId = newAiRequestId();
+  __voiceInFlight = true;
+  const btn=voiceAi; setBusy(btn,true,'AI processing…'); $('aiTranslation').textContent='AI is transcribing and translating…';
+  const ext = recordedBlob.type.includes('mp4') ? 'mp4' : recordedBlob.type.includes('ogg') ? 'ogg' : recordedBlob.type.includes('wav') ? 'wav' : 'webm'; const fd=new FormData(); fd.append('audio',recordedBlob,'patient-voice.'+ext); fd.append('_ai_request_id',__voiceRequestId); fd.append('source_language',$('voiceSourceLanguage').value); fd.append('target_language',$('voiceTargetLanguage').value); fd.append('browser_transcript',liveFinal || $('liveTranscript').textContent || ''); fd.append('csrf_token',csrfToken); if(__lastVoiceRetryToken) fd.append('_ai_retry_token',__lastVoiceRetryToken);
+  try { const x=await jsonFetch('/api/voice',{method:'POST',body:fd}); if(x.transcript){$('liveTranscript').textContent=x.transcript; $('symptoms').value=(voiceBaseSymptoms ? voiceBaseSymptoms+'\n' : '')+x.transcript; liveFinal=x.transcript;} $('aiTranslation').textContent=x.translation || x.warning || 'No translation returned.'; __lastVoiceRetryToken=''; } catch(e){ const canRetry=Boolean(e.data?.retryable&&e.data?.retry_token); if(canRetry)__lastVoiceRetryToken=e.data.retry_token; $('aiTranslation').innerHTML = `${esc(e.message)} ${canRetry?'<button type="button" id="retryVoiceAi" class="secondary compact retry-btn">↻ Retry same recording</button><small>This is the one allowed retry for this recording.</small>':'<small>No further retry is available. Record a new input.</small>'}`; if(canRetry)$('retryVoiceAi')?.addEventListener('click',()=>voiceAi.click(),{once:true}); }
+  finally { __voiceInFlight = false; setBusy(btn,false); }
+});
+
+$('useTranscript')?.addEventListener('click',()=>{const t=$('liveTranscript')?.textContent?.trim();if(t&&t!=='Nothing recorded yet.'){$('symptoms').value=(voiceBaseSymptoms?voiceBaseSymptoms+'\n':'')+t;}});
+$('useTranslation')?.addEventListener('click',()=>{const t=$('aiTranslation')?.textContent?.trim();if(t&&t!=='Waiting for recording.'&&!t.startsWith('AI processing')&&!t.startsWith('AI is')){$('symptoms').value=(voiceBaseSymptoms?voiceBaseSymptoms+'\n':'')+t;}});
+
+// Report upload previews
+function bindFilePreview(input, preview, removeBtn) {
+  if (!input || !preview) return {clear:()=>{}};
+  let objectUrl = null;
+  const clear = () => {
+    if (objectUrl) URL.revokeObjectURL(objectUrl);
+    objectUrl = null; input.value=''; preview.innerHTML='<span class="muted">No report selected.</span>'; removeBtn?.classList.add('hidden');
+  };
+  input.addEventListener('change', () => {
+    if (objectUrl) URL.revokeObjectURL(objectUrl);
+    objectUrl=null; preview.innerHTML=''; const f=input.files?.[0];
+    if (!f) { clear(); return; }
+    const valid=['image/png','image/jpeg','application/pdf'];
+    const type=f.type || (/\.pdf$/i.test(f.name)?'application/pdf':(/\.jpe?g$/i.test(f.name)?'image/jpeg':(/\.png$/i.test(f.name)?'image/png':'')));
+    const sizeMb=(f.size/1024/1024).toFixed(2);
+    if (!valid.includes(type)) { preview.innerHTML=`<div class="error-card"><b>Unsupported file</b><span>${esc(f.name)} is not PNG, JPG/JPEG or PDF.</span></div>`; input.value=''; removeBtn?.classList.add('hidden'); return; }
+    if (f.size > 3*1024*1024) { preview.innerHTML=`<div class="error-card"><b>File too large</b><span>${esc(f.name)} is ${sizeMb} MB. Maximum is 3 MB.</span></div>`; input.value=''; removeBtn?.classList.add('hidden'); return; }
+    if (type==='application/pdf') preview.innerHTML=`<div class="file-preview"><b>📄 ${esc(f.name)}</b><small>${sizeMb} MB · PDF selected and ready to analyze.</small></div>`;
+    else { objectUrl=URL.createObjectURL(f); const img=document.createElement('img'); img.src=objectUrl; img.alt='Selected report preview'; img.loading='lazy'; img.addEventListener('error',()=>{preview.innerHTML='<div class="error-card"><b>Preview failed</b><span>The image could not be previewed. Choose another file.</span></div>';}); preview.appendChild(img); preview.insertAdjacentHTML('beforeend',`<div class="file-preview"><b>${esc(f.name)}</b><small>${sizeMb} MB · Image selected and ready to analyze.</small></div>`); }
+    removeBtn?.classList.remove('hidden');
+  });
+  removeBtn?.addEventListener('click', clear);
+  return {clear};
+}
+
+const triageUpload = bindFilePreview($('triageFile'), $('triagePreview'), $('removeTriageFile'));
+const ocrUpload = bindFilePreview($('ocrFile'), $('preview'), $('ocrRemove'));
+$('changeTriageFile')?.addEventListener('click', () => { const input=$('triageFile'); if(input){input.value=''; input.click();} });
+$('changeOcrFile')?.addEventListener('click', () => { const input=$('ocrFile'); if(input){input.value=''; input.click();} });
+
+// Standalone multimodal report workflow: this now supplies all required patient fields and creates a real queue case.
+let __lastOcrPayload = null;
+let __lastOcrRetryToken = '';
+let __ocrInFlight = false;
+let __ocrRequestId = '';
+$('ocrForm')?.addEventListener('submit', async e => {
+  e.preventDefault();
+  if (__ocrInFlight) return;
+  __ocrInFlight = true;
+  const form=e.currentTarget, btn=form.querySelector('button[type="submit"]'), out=$('ocrResult');
+  setBusy(btn,true,'Analyzing report…'); out.classList.remove('hidden'); out.innerHTML='<div class="loading-card"><b>Gemini is reviewing the report…</b><span>One failed AI request stops processing. No automatic retries or fallback models are used.</span></div>';
+  const ref=form.elements.patient_ref; if(ref && !ref.value) ref.value='OCR-'+Math.random().toString(36).slice(2,8).toUpperCase();
+  const retry = Boolean(__lastOcrRetryToken);
+  if (!retry) __ocrRequestId = newAiRequestId();
+  const payload = retry && __lastOcrPayload ? cloneFormData(__lastOcrPayload) : new FormData(form);
+  payload.set('_ai_request_id', __ocrRequestId);
+  if (retry) payload.set('_ai_retry_token', __lastOcrRetryToken);
+  else { __lastOcrPayload = cloneFormData(payload); __lastOcrRetryToken = ''; }
+  try { const x=await jsonFetch('/api/triage',{method:'POST',body:payload}); renderNote(x.note,x.warning,out); ocrUpload.clear(); form.reset(); __lastOcrPayload=null; __lastOcrRetryToken=''; await loadDashboard(); } catch(err){ const canRetry=Boolean(err.data?.retryable&&err.data?.retry_token); if(canRetry)__lastOcrRetryToken=err.data.retry_token; out.innerHTML=`<div class="error-card"><b>Report analysis stopped</b><span>${esc(err.message)}</span>${canRetry?'<button type="button" id="retryOcrBtn" class="secondary compact retry-btn">↻ Retry same report</button><small>This is the one allowed retry for this report.</small>':'<small>No further retry is available. Start a new report submission.</small>'}</div>`; if(canRetry)$('retryOcrBtn')?.addEventListener('click',()=>form.requestSubmit(),{once:true}); }
+  finally { setBusy(btn,false); }
+});
+async function checkGemini(){try{const x=await jsonFetch('/api/ocr'); $('geminiBadge').textContent=x.enabled?'● Gemini connected':'○ Gemini unavailable — add GEMINI_API_KEY';}catch(e){$('geminiBadge').textContent='○ AI status unavailable';}}
+let __diagnosticInFlight = false;
+async function testGeminiConnection(){
+  if(__diagnosticInFlight) return; __diagnosticInFlight=true;
+  const badge=$('geminiBadge');
+  if(!badge) return;
+  const original=badge.textContent; badge.textContent='Testing Gemini…';
+  try{
+    const fd=new URLSearchParams({csrf_token:csrfToken,_ai_request_id:newAiRequestId()});
+    const x=await jsonFetch('/api/diagnostics/gemini',{method:'POST',body:fd});
+    badge.textContent=x.ok?'● Gemini test passed':'○ Gemini unavailable';
+    badge.title=x.message||x.error||'';
+    if(!x.ok && x.error) { const box=$('clientError'); if(box){box.textContent=x.error;box.classList.remove('hidden');} }
+  }catch(e){ badge.textContent=original; const box=$('clientError'); if(box){box.textContent=e.message;box.classList.remove('hidden');} } finally { __diagnosticInFlight=false; }
+}
+$('geminiBadge')?.addEventListener('click',testGeminiConnection);
+$('geminiBadge')?.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();testGeminiConnection();}});
+
+
+// Analytics
+async function loadAnalytics(){try{const box=$('analyticsError'); if(box) box.classList.add('hidden'); const a=await jsonFetch('/api/analytics'); $('aTotal').textContent=a.total; $('aUrgent').textContent=a.urgent; $('aReviewed').textContent=a.reviewed; $('aRate').textContent=a.review_rate+'%'; bars('#riskBars',a.risks); bars('#langBars',a.languages); bars('#statusBars',a.statuses);}catch(e){console.error(e); const box=$('analyticsError'); if(box){box.textContent=e.message;box.classList.remove('hidden');}}}
+function bars(sel,obj){const el=qs(sel);if(!el)return;const vals=Object.entries(obj||{}),max=Math.max(1,...vals.map(x=>x[1]));el.innerHTML=vals.length?vals.map(([k,v])=>{const pct=Math.round((v/max)*100);const bucket=Math.min(100,Math.max(0,Math.round(pct/10)*10));return `<div class="bar"><div class="bar-head"><span>${esc(k)}</span><b>${v}</b></div><div class="bar-track"><div class="bar-fill w-${bucket}"></div></div></div>`}).join(''):'<p class="empty">No data yet.</p>';}
+
+// Safety confirmation for admin destructive actions.
+document.addEventListener('submit',e=>{const f=e.target.closest('form[data-confirm]');if(f&&!confirm(f.dataset.confirm))e.preventDefault();});
+
+resetVoiceUI();
+loadDashboard();
+
+window.__swastyaResetVoice = resetVoiceUI;
+window.__swastyaLoadDashboard = loadDashboard;
+window.__swastyaAppReady = true;
+window.addEventListener('error', e => {
+  console.error('Swastya Assist interface error:', e.error || e.message);
+  const box = document.getElementById('clientError');
+  if (box) { box.hidden = false; box.textContent = 'Interface error: ' + (e.message || 'Please refresh the page.'); }
+});
+window.addEventListener('unhandledrejection', e => console.error('Swastya Assist async error:', e.reason));
