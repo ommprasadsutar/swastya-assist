@@ -1,0 +1,12 @@
+# Local-only state and test artifacts
+.env
+.env.*.local
+instance/
+triage.db
+triage.db-*
+uploads/*
+!uploads/.gitkeep
+__pycache__/
+.pytest_cache/
+tests/
+*.log
