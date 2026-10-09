@@ -1,0 +1,120 @@
+name: Verify and publish Swastya Assist V11.1.8 source
+
+on:
+  push:
+    branches:
+      - release/v11.1.8-verified
+    paths:
+      - .github/workflows/materialize-v118.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: swastya-v11-1-8-verified
+  cancel-in-progress: false
+
+jobs:
+  verify-and-materialize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout release branch
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Extract source bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s Swastya_Assist_V11_1_8_Test_Ready_Source_Verified.zip
+          mkdir -p .release-v11.1.8
+          unzip -q Swastya_Assist_V11_1_8_Test_Ready_Source_Verified.zip -d .release-v11.1.8
+          SRC="$GITHUB_WORKSPACE/.release-v11.1.8/swastya-assist-v11.1.8"
+          test -f "$SRC/app.py"
+          test -f "$SRC/VERSION"
+          test "$(tr -d '\r\n' < "$SRC/VERSION")" = "11.1.8"
+          grep -q 'APP_VERSION = "11.1.8"' "$SRC/app.py"
+          echo "Bundle version: $(cat "$SRC/VERSION")"
+          echo "Bundle source files: $(find "$SRC" -type f | wc -l)"
+
+      - name: Install project dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          SRC="$GITHUB_WORKSPACE/.release-v11.1.8/swastya-assist-v11.1.8"
+          python -m pip install --upgrade pip
+          python -m pip install -r "$SRC/requirements.txt"
+          python -m pip install pytest
+
+      - name: Compile Python and JavaScript
+        shell: bash
+        run: |
+          set -euo pipefail
+          SRC="$GITHUB_WORKSPACE/.release-v11.1.8/swastya-assist-v11.1.8"
+          python -m compileall -q "$SRC/app.py" "$SRC/privacy_redaction.py" "$SRC/diagnose_gemini.py" "$SRC/verify_release.py"
+          for f in "$SRC"/static/app.js "$SRC"/static/boot.js "$SRC"/static/login.js "$SRC"/static/landing.js "$SRC"/static/admin.js "$SRC"/static/patient.js "$SRC"/static/offline_capture.js "$SRC"/public/static/app.js "$SRC"/public/static/boot.js "$SRC"/public/static/login.js "$SRC"/public/static/landing.js; do
+            if [ -f "$f" ] && command -v node >/dev/null 2>&1; then node --check "$f"; fi
+          done
+
+      - name: Run release test suite
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$GITHUB_WORKSPACE/.release-v11.1.8/swastya-assist-v11.1.8"
+          pytest -q
+
+      - name: Verify release manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$GITHUB_WORKSPACE/.release-v11.1.8/swastya-assist-v11.1.8"
+          python verify_release.py
+
+      - name: Materialize verified release at repository root
+        shell: bash
+        run: |
+          set -euo pipefail
+          SRC="$GITHUB_WORKSPACE/.release-v11.1.8/swastya-assist-v11.1.8"
+          rsync -a \
+            --exclude='.git/' \
+            --exclude='.env' \
+            --exclude='*.db' \
+            --exclude='*.sqlite*' \
+            --exclude='instance/' \
+            --exclude='uploads/' \
+            --exclude='__pycache__/' \
+            --exclude='.pytest_cache/' \
+            --exclude='*.pyc' \
+            --exclude='Swastya_Assist_V11_1_8_Test_Ready_Source_Verified.zip' \
+            "$SRC/" "$GITHUB_WORKSPACE/"
+          rm -rf "$GITHUB_WORKSPACE/.release-v11.1.8"
+          rm -f "$GITHUB_WORKSPACE/Swastya_Assist_V11_1_8_Test_Ready_Source_Verified.zip"
+          test "$(tr -d '\r\n' < VERSION)" = "11.1.8"
+          grep -q 'APP_VERSION = "11.1.8"' app.py
+          test ! -f .env
+          test ! -f triage.db
+
+      - name: Commit verified source onto release branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No source differences to commit."
+          else
+            git commit -m "Release Swastya Assist V11.1.8 — tested source"
+            git push origin "HEAD:release/v11.1.8-verified"
+          fi
+          test "$(tr -d '\r\n' < VERSION)" = "11.1.8"
+          grep -q 'APP_VERSION = "11.1.8"' app.py
+          echo "V11.1.8 was tested and materialized to the release branch."
