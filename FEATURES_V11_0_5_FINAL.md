@@ -1,4 +1,4 @@
-# Swastya Assist V11.0.5 — Complete Feature List
+# Swastya Assist V11.0.6 — Complete Feature List
 
 ## Patient and intake workflow
 1. Synthetic patient/encounter intake

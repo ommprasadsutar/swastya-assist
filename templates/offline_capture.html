@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Swastya Assist — Offline Capture</title>
+  <link rel="icon" href="/static/favicon.ico?v=35.0" type="image/x-icon">
+  <link rel="stylesheet" href="/static/offline_capture.css?v=1">
+</head>
+<body>
+  <header class="top"><a href="/" class="brand"><img src="/static/swastya-assist-logo.jpg?v=35.0" alt="Swastya Assist"><span><b>Swastya Assist</b><small>Secure offline capture</small></span></a><div class="top-right"><span id="networkBadge" class="pill">Checking connection…</span><a href="/console" class="back-link">Return to console ↗</a></div></header>
+  <main class="wrap">
+    <section class="intro"><span class="eyebrow">OFFLINE WORKFLOW · V11.1.8</span><h1>Capture now. Sync safely later.</h1><p>Drafts are encrypted in this browser with a passphrase you choose. When the connection returns, you can synchronize them to the authenticated facility queue. Offline sync never calls Gemini and never uploads reports or audio.</p></section>
+    <div class="warning"><b>Educational prototype:</b> use synthetic/public sample data only. Browser encryption helps protect locally stored drafts but does not replace managed devices, deployment security, or a clinical privacy review. Keep your passphrase safe; there is no recovery path if you forget it.</div>
+    <section class="panel unlock-panel">
+      <div><span class="eyebrow">LOCAL ENCRYPTION</span><h2>Unlock your local queue</h2><p>First use creates a local encryption key from the passphrase. Later visits require the same passphrase.</p></div>
+      <form id="unlockForm"><label for="queuePassphrase">Passphrase <span>12 characters minimum</span></label><input id="queuePassphrase" type="password" minlength="12" autocomplete="current-password" required placeholder="Use a long, unique passphrase"><div class="button-row"><button type="submit" class="primary">Unlock / set up queue</button><button type="button" id="lockBtn" class="secondary">Lock queue</button></div></form>
+      <div id="unlockState" class="state" role="status">Queue locked. Draft contents are not available until unlocked.</div>
+    </section>
+    <section class="columns">
+      <section class="panel">
+        <div class="section-heading"><div><span class="eyebrow">LOCAL DRAFT</span><h2>Create an offline intake</h2></div><span class="tiny-tag">No AI · No file uploads</span></div>
+        <form id="draftForm">
+          <div class="grid two"><label>Patient reference<input name="patient_ref" maxlength="80" placeholder="SYN-001 (optional)"></label><label>Patient name<input name="patient_name" maxlength="160" required placeholder="Synthetic patient name"></label></div>
+          <div class="grid three"><label>Age (optional)<input name="age" type="number" min="0" max="130" placeholder="Unknown"></label><label>Gender<select name="gender"><option value="">Not recorded</option><option>Female</option><option>Male</option><option>Non-binary</option><option>Prefer not to say</option></select></label><label>Language<select name="language"><option>English</option><option>Hindi</option><option>Bengali</option><option>Marathi</option><option>Tamil</option><option>Telugu</option><option>Odia</option><option>Kannada</option><option>Malayalam</option><option>Punjabi</option><option>Gujarati</option><option>Assamese</option><option>Urdu</option></select></label></div>
+          <div class="grid two"><label>Facility / locality reference<input name="address" maxlength="500" placeholder="Configured facility / synthetic locality"></label><label>Scenario<select name="scenario"><option>Outpatient queue triage</option><option>Occupational health screening</option><option>Campus fever triage</option><option>Maternal follow-up</option><option>Chronic disease check-in</option><option>Public health camp screening</option><option>Referral note preparation</option></select></label></div>
+          <label>Patient narrative / symptoms<textarea name="symptoms" maxlength="5000" rows="5" required placeholder="Record the patient's stated symptoms, onset, and relevant context. Do not enter real identifiers in demo mode."></textarea></label>
+          <label class="check"><input type="checkbox" name="consent" required><span>I confirm this is synthetic/public sample data or the appropriate authorization has been recorded. I understand it will be stored locally in this browser until synchronization.</span></label>
+          <div class="button-row"><button id="saveDraftBtn" type="submit" class="primary" disabled>Encrypt and save draft</button><button type="reset" class="secondary">Reset form</button></div>
+        </form>
+        <div id="draftState" class="state" role="status">Unlock the local queue before saving a draft.</div>
+      </section>
+      <section class="panel queue-panel">
+        <div class="section-heading"><div><span class="eyebrow">PENDING SYNCHRONIZATION</span><h2>Local queue</h2></div><span id="queueCount" class="count">—</span></div>
+        <p class="muted">Only encrypted, text-only drafts are stored here. Once a server confirms synchronization, the sensitive draft payload is purged from this browser and a minimal sync receipt remains.</p>
+        <div id="queueList" class="queue-list"><div class="empty">Unlock your queue to view locally stored drafts.</div></div>
+        <div class="button-row queue-actions"><button type="button" id="syncBtn" class="primary" disabled>Sync pending drafts</button><button type="button" id="refreshQueueBtn" class="secondary" disabled>Refresh</button><button type="button" id="clearQueueBtn" class="danger">Delete all local drafts</button></div>
+        <div id="syncState" class="state" role="status">Synchronization requires an authenticated clinical account and network access.</div>
+      </section>
+    </section>
+    <section class="panel rules"><h2>What this offline queue does — and does not do</h2><div class="rules-grid"><div><b>✓ Encrypted locally</b><p>AES-GCM with a key derived from your passphrase using PBKDF2. The passphrase is not stored.</p></div><div><b>✓ Idempotent server sync</b><p>The server uses a unique client ID to prevent duplicate cases if sync is repeated.</p></div><div><b>✓ Manual-review state</b><p>Synced cases are labelled offline sync; no AI output is fabricated while disconnected.</p></div><div><b>✕ No media in offline queue</b><p>Reports and raw audio are not stored or uploaded by this screen. Use the separate report workflow online.</p></div></div></section>
+    <footer>Swastya Assist · Multimodal · Privacy-aware · Human-led · Not a diagnostic tool</footer>
+  </main>
+  <script src="/static/offline_capture.js?v=1" defer></script>
+</body>
+</html>

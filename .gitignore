@@ -8,3 +8,13 @@ triage.db-*
 uploads/*
 !uploads/.gitkeep
 .DS_Store
+# Runtime secrets, local database files, browser/media uploads and generated reports
+instance/*
+!instance/.gitkeep
+public/uploads/*
+!public/uploads/.gitkeep
+*.log
+*.pdf
+*.pptx
+*.zip
+.env.*.local

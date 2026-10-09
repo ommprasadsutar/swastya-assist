@@ -1,4 +1,4 @@
-# Swastya Assist V11.0.5 — deployment guide
+# Swastya Assist V11.0.6 — deployment guide
 
 ## 1. Laptop acceptance
 
@@ -94,7 +94,7 @@ Do not rely on Vercel's function filesystem for durable application data. Report
 
 The model-interaction path does not use the Google GenAI SDK. It sends one direct HTTP POST with httpx, with redirect following disabled and no automatic retry layer. The HTTP timeout is shorter than the Vercel function maximum so the function can return an application response before the platform deadline.
 
-V11.0.5 also does not use automatic model fallback or an alternate provider call. The application may save a clearly labeled manual-review fallback after a triage provider-unavailable failure and issues a server-generated, single-use Retry token. A new patient/report/recording starts a new chain.
+V11.0.6 also does not use automatic model fallback or an alternate provider call. The application may save a clearly labeled manual-review fallback after a triage provider-unavailable failure and issues a server-generated, single-use Retry token. A new patient/report/recording starts a new chain.
 
 Gemini's current GenerateContent API supports standard `contents[].parts[]` input and inline media for multimodal requests. The release deliberately uses the minimal request shape and validates model output locally.
 
