@@ -1,4 +1,4 @@
-# Swastya Assist V11.0.5 — Final Hardened Release
+# Swastya Assist V11.0.6 — Final Hardened Release
 
 This package consolidates the V11 hardened workflow and the PostgreSQL compatibility fixes into one release.
 
@@ -36,3 +36,6 @@ This package consolidates the V11 hardened workflow and the PostgreSQL compatibi
 
 ## Safety boundary
 The application is non-diagnostic and does not prescribe or recommend treatment. AI output remains advisory. Patient contact is never initiated automatically by AI; only an authorized human reviewer can initiate it after recording contact consent.
+
+
+V11.0.7 hotfix: Gemini triage requests now include a JSON response schema and bounded server-side timeline normalization for legacy list/object outputs.

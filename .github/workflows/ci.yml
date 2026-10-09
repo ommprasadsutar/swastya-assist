@@ -1,0 +1,48 @@
+name: Swastya Assist checks
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: pip
+      - name: Install OCR engine
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y tesseract-ocr
+      - name: Install Python dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Check Python syntax
+        run: python -m compileall -q app.py privacy_redaction.py tests
+      - name: Check JavaScript syntax
+        run: |
+          node --check static/app.js
+          node --check static/boot.js
+          node --check static/login.js
+          node --check static/landing.js
+          node --check static/offline_capture.js
+          node --check static/sw.js
+      - name: Verify static deployment mirrors
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          root = Path('.')
+          names = sorted(p.name for p in (root / 'static').iterdir() if p.is_file())
+          mismatches = [n for n in names if not (root / 'public' / 'static' / n).exists() or (root / 'static' / n).read_bytes() != (root / 'public' / 'static' / n).read_bytes()]
+          if mismatches:
+              raise SystemExit('Static mirror mismatch: ' + ', '.join(mismatches))
+          print(f'{len(names)} static assets mirror correctly.')
+          PY
+      - name: Run test suite
+        run: pytest -q
