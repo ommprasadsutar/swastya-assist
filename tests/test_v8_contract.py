@@ -5,7 +5,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_current_runtime_and_public_assets():
-    assert (ROOT / ".python-version").read_text(encoding="utf-8").strip() == "3.13.5"
+    assert (ROOT / ".python-version").read_text(encoding="utf-8").strip() == "3.13"
     assert (ROOT / "public" / "static" / "app.js").exists()
     assert (ROOT / "public" / "static" / "style.css").exists()
     env = (ROOT / ".env.example").read_text(encoding="utf-8")
