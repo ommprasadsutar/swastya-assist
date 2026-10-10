@@ -1,4 +1,4 @@
-"""V11.1.9 regression checks for offline text sync and OCR media redaction.
+"""V11.1.10 regression checks for offline text sync and OCR media redaction.
 
 Static contract checks run without Flask; pixel-redaction tests require Tesseract.
 These tests use synthetic content only and do not call Gemini or any network service.
@@ -58,7 +58,7 @@ def test_service_worker_never_caches_authenticated_pages_or_api_responses():
     assert "url.pathname.startsWith('/api/')" in SW and "return;" in SW
     for path in ("/console", "/login", "/register", "/admin", "/patient", "/logout"):
         assert path in SW
-    assert "swastya-offline-shell-v119" in SW
+    assert "swastya-offline-shell-v1110" in SW
 
 
 def test_privacy_gate_only_uses_redacted_media_derivative_after_explicit_consent():
