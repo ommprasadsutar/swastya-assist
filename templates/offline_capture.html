@@ -5,7 +5,7 @@
   <meta name="color-scheme" content="light">
   <title>Swastya Assist — Offline Capture</title>
   <link rel="icon" href="/static/favicon.ico?v=35.0" type="image/x-icon">
-  <link rel="stylesheet" href="/static/offline_capture.css?v=2">
+  <link rel="stylesheet" href="/static/offline_capture.css?v=3">
 </head>
 <body>
   <header class="top"><a href="/" class="brand"><img src="/static/swastya-assist-logo.jpg?v=35.0" alt="Swastya Assist"><span><b>Swastya Assist</b><small>Secure offline capture</small></span></a><div class="top-right"><span id="networkBadge" class="pill">Checking connection…</span><a href="/console" class="back-link">Return to console ↗</a></div></header>
@@ -24,7 +24,7 @@
           <div class="grid two"><label>Patient reference<input name="patient_ref" maxlength="80" placeholder="SYN-001 (optional)"></label><label>Patient name<input name="patient_name" maxlength="160" required placeholder="Synthetic patient name"></label></div>
           <div class="grid three"><label>Age (optional)<input name="age" type="number" min="0" max="130" placeholder="Unknown"></label><label>Gender<select name="gender"><option value="">Not recorded</option><option>Female</option><option>Male</option><option>Non-binary</option><option>Prefer not to say</option></select></label><label>Language<select name="language"><option>English</option><option>Hindi</option><option>Bengali</option><option>Marathi</option><option>Tamil</option><option>Telugu</option><option>Odia</option><option>Kannada</option><option>Malayalam</option><option>Punjabi</option><option>Gujarati</option><option>Assamese</option><option>Urdu</option></select></label></div>
           <div class="grid two"><label>Facility / locality reference<input name="address" maxlength="500" placeholder="Configured facility / synthetic locality"></label><label>Scenario<select name="scenario"><option>Outpatient queue triage</option><option>Occupational health screening</option><option>Campus fever triage</option><option>Maternal follow-up</option><option>Chronic disease check-in</option><option>Public health camp screening</option><option>Referral note preparation</option></select></label></div>
-          <label>Patient narrative / symptoms<textarea name="symptoms" maxlength="5000" rows="5" required placeholder="Record the patient's stated symptoms, onset, and relevant context. Do not enter real identifiers in demo mode."></textarea></label>
+          <label>Patient narrative / symptoms<textarea name="symptoms" maxlength="5000" rows="5" required placeholder="Record the patient's stated symptoms, onset, and relevant context. Do not enter real identifiers in prototype."></textarea></label>
           <label class="check"><input type="checkbox" name="consent" required><span>I confirm this is synthetic/public sample data or the appropriate authorization has been recorded. I understand it will be stored locally in this browser until synchronization.</span></label>
           <div class="button-row"><button id="saveDraftBtn" type="submit" class="primary" disabled>Encrypt and save draft</button><button type="reset" class="secondary">Reset form</button></div>
         </form>
@@ -38,9 +38,10 @@
         <div id="syncState" class="state" role="status">Synchronization requires an authenticated clinical account and network access.</div>
       </section>
     </section>
+    <section class="panel rules offline-how"><h2>How offline mode works</h2><ol><li><b>Open this page while online.</b> The service worker caches only this generic capture screen and its static assets so the page can reopen without a connection.</li><li><b>Unlock with your passphrase.</b> The browser derives an encryption key with PBKDF2 and encrypts each text-only draft using AES-GCM before saving it in IndexedDB. The passphrase is never stored.</li><li><b>Capture text while disconnected.</b> Drafts stay on this device. No AI/Gemini call is made, and voice recordings, report files, and AI results are not cached or queued.</li><li><b>Reconnect and sign in.</b> Press Sync (or allow the online reconnect handler) to send drafts through the authenticated sync API. A unique client ID prevents duplicate cases; a draft is marked synced only after server confirmation. Unconfirmed drafts remain local.</li></ol><p class="muted"><b>Why no offline voice?</b> Browser speech recognition is not consistently available offline and may send audio to a browser/provider service. To avoid implying private or reliable offline transcription, this queue intentionally supports text only. Use voice only in the separate online workflow after checking consent and connection status.</p></section>
     <section class="panel rules"><h2>What this offline queue does — and does not do</h2><div class="rules-grid"><div><b>✓ Encrypted locally</b><p>AES-GCM with a key derived from your passphrase using PBKDF2. The passphrase is not stored.</p></div><div><b>✓ Idempotent server sync</b><p>The server uses a unique client ID to prevent duplicate cases if sync is repeated.</p></div><div><b>✓ Manual-review state</b><p>Synced cases are labelled offline sync; no AI output is fabricated while disconnected.</p></div><div><b>✕ No media in offline queue</b><p>Reports and raw audio are not stored or uploaded by this screen. Use the separate report workflow online.</p></div></div></section>
     <footer>Swastya Assist · Multimodal · Privacy-aware · Human-led · Not a diagnostic tool</footer>
   </main>
-  <script src="/static/offline_capture.js?v=2" defer></script>
+  <script src="/static/offline_capture.js?v=3" defer></script>
 </body>
 </html>
