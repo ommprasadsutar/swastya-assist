@@ -353,6 +353,25 @@ function renderNote(n, warning, el = $('result')) {
 const VOICE_DRAFT_KEY='swastya_voice_draft_v1111';
 function cacheVoiceDraft(transcript, translation){ try { sessionStorage.setItem(VOICE_DRAFT_KEY, JSON.stringify({transcript:String(transcript||'').slice(0,12000), translation:String(translation||'').slice(0,12000), ts:Date.now()})); } catch(_) {} }
 function restoreVoiceDraft(){ try { const raw=sessionStorage.getItem(VOICE_DRAFT_KEY); if(!raw) return; const d=JSON.parse(raw); if(!d || Date.now()-(d.ts||0)>3600000) return; if(d.transcript && $('liveTranscript')) {$('liveTranscript').value=d.transcript; $('liveTranscript').textContent=d.transcript;} if(d.translation && $('aiTranslation')) {$('aiTranslation').value=d.translation; $('aiTranslation').textContent=d.translation;} } catch(_) {} }
+// Offline safety: disable voice playback/recording and AI transcription whenever the browser is offline.
+function enforceOfflineVoicePolicy() {
+  const offline = !navigator.onLine;
+  const playback = $('voicePlayback');
+  if (offline) {
+    try { playback?.pause(); if (playback) { playback.currentTime = 0; playback.removeAttribute('src'); playback.load(); } } catch (_) {}
+    try { window.speechSynthesis?.cancel(); } catch (_) {}
+    try { if (mediaRec && mediaRec.state !== 'inactive') mediaRec.stop(); } catch (_) {}
+    try { speechRec?.stop(); } catch (_) {}
+    if ($('voiceAi')) $('voiceAi').disabled = true;
+    if ($('recordingStatus')) $('recordingStatus').textContent = 'Voice and AI transcription are unavailable offline.';
+    voiceStatus('Offline mode is silent: browser audio playback and AI transcription are disabled until connectivity returns.', 'warn');
+  } else if ($('voiceAi')) {
+    $('voiceAi').disabled = !recordedBlob;
+  }
+}
+window.addEventListener('offline', enforceOfflineVoicePolicy);
+window.addEventListener('online', enforceOfflineVoicePolicy);
+
 // Voice: real recording + browser transcript + optional Gemini transcript/translation.
 const voice = $('voice'), voiceStop = $('voiceStop'), voiceTools = $('voiceTools'), voicePlayback = $('voicePlayback'), voiceAi = $('voiceAi');
 let mediaRec = null, speechRec = null, mediaStream = null, micActive = false, audioChunks = [], recordedBlob = null, recordingStartedAt = 0, timerHandle = null, liveFinal = '', lastObjectUrl = null, voiceBaseSymptoms = '';
