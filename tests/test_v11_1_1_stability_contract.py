@@ -6,7 +6,7 @@ ADMIN = (ROOT / 'templates' / 'admin.html').read_text(encoding='utf-8')
 ADMIN_JS = (ROOT / 'static' / 'admin.js').read_text(encoding='utf-8')
 
 def test_release_version_and_asset_sync():
-    assert 'APP_VERSION = "11.1.8"' in APP
+    assert 'APP_VERSION = "11.1.9"' in APP
     assert (ROOT/'static'/'app.js').read_bytes() == (ROOT/'public'/'static'/'app.js').read_bytes()
     assert (ROOT/'static'/'style.css').read_bytes() == (ROOT/'public'/'static'/'style.css').read_bytes()
     assert (ROOT/'static'/'admin.js').read_bytes() == (ROOT/'public'/'static'/'admin.js').read_bytes()
