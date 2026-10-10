@@ -58,7 +58,7 @@ def test_service_worker_never_caches_authenticated_pages_or_api_responses():
     assert "url.pathname.startsWith('/api/')" in SW and "return;" in SW
     for path in ("/console", "/login", "/register", "/admin", "/patient", "/logout"):
         assert path in SW
-    assert "swastya-offline-shell-v1110" in SW
+    assert "swastya-offline-shell-v1111" in SW
 
 
 def test_privacy_gate_only_uses_redacted_media_derivative_after_explicit_consent():
