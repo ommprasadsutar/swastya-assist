@@ -425,3 +425,34 @@ input[type="checkbox"],input[type="radio"]{
 .quick .empty{padding:22px 12px;border:1px dashed #d9e5eb;background:#f8fbfc;border-radius:10px;line-height:1.6}
 @media(max-width:760px){.quick{position:static;max-height:none;overflow:visible}.sidebar nav .nav-group-label{grid-column:1/-1;padding:9px 8px 2px}}
 @media(prefers-reduced-motion:reduce){.quick{scroll-behavior:auto}}
+
+/* V11.1.11 visual refresh: brighter teal/indigo landing and focused sign-in. */
+.landing-ref{background:#f0faf9;color:#14364a}
+.landing-ref .ref-nav{background:rgba(248,255,254,.94);border-bottom-color:#cfe7e5;box-shadow:0 8px 30px rgba(12,72,79,.08)}
+.landing-ref .ref-brand b{color:#0e5964}.landing-ref .ref-brand small{color:#557b84}
+.landing-ref .ref-menu a{color:#315e6b}.landing-ref .ref-menu a.active,.landing-ref .ref-menu a:hover{color:#087e80}
+.landing-ref .ref-hero{background:radial-gradient(circle at 82% 15%,rgba(117,224,206,.38),transparent 30%),linear-gradient(125deg,#f3fffd 0%,#e1f6f5 48%,#e8edff 100%)}
+.landing-ref .ref-chip{background:#d9f7f0!important;border-color:#b9e9df!important;color:#087c79!important}
+.landing-ref .ref-hero h1{color:#143b51}.landing-ref .ref-hero h1 span{color:#087f8c}
+.landing-ref .ref-start{background:linear-gradient(135deg,#087f8c,#1769aa);box-shadow:0 12px 26px rgba(8,127,140,.22)}
+.landing-ref .ref-login{border-color:#b8d9df;color:#155b6b;background:rgba(255,255,255,.75)}
+.landing-ref .ref-visual{background:radial-gradient(circle at 50% 42%,#d5f5ee 0%,#dfe9ff 56%,transparent 74%)}
+.landing-ref .ref-shield{background:linear-gradient(145deg,#087f8c,#174c83);box-shadow:0 22px 48px rgba(11,78,109,.22)}
+.landing-ref .ref-how{background:linear-gradient(180deg,#e8f8f4,#f6fbff)}.landing-ref .ref-features{background:#f7fbff}
+.landing-ref .ref-feature-grid article{background:rgba(255,255,255,.82);border-color:#d7e8ed}.landing-ref .ref-feature-grid article:hover{box-shadow:0 12px 30px rgba(16,75,100,.09)}
+.landing-ref .ref-info{background:linear-gradient(135deg,#edf9f8,#f2f4ff)}.landing-ref .ref-footer{background:linear-gradient(110deg,#103e5b,#0b6b79);color:#dff8f4}
+.login-page{background:radial-gradient(ellipse at 12% 15%,rgba(102,220,204,.30),transparent 34%),radial-gradient(ellipse at 90% 80%,rgba(123,151,255,.19),transparent 36%),linear-gradient(135deg,#eaf9f7 0%,#f5f7ff 55%,#e8f4fa 100%)}
+.login-shell{max-width:1220px}.login-brand-row{padding-top:24px}.login-brand b{color:#0e5964}.login-brand small{color:#60818b}
+.login-layout{grid-template-columns:minmax(0,1fr) minmax(390px,470px);gap:clamp(28px,5vw,72px);padding:45px 25px}
+.login-intro{padding:30px;border:1px solid rgba(177,219,220,.75);border-radius:26px;background:linear-gradient(145deg,rgba(255,255,255,.72),rgba(231,250,247,.88));box-shadow:0 20px 60px rgba(18,74,90,.08)}
+.login-intro h1{color:#123d54}.login-intro h1 span{color:#087f8c}
+.login-workflow>div{border-color:#cce7e5;background:rgba(255,255,255,.8)}.login-workflow>div>span{background:#d8f5ef;color:#087b7d}
+.login-safety{background:#e9f9f3!important;border-color:#bce7d6!important}.login-card{border:1px solid #cde4e8!important;border-radius:24px!important;box-shadow:0 24px 70px rgba(15,68,89,.15)!important}
+.login-card-head{border-bottom-color:#e1edef}.login-card-kicker,.login-kicker{color:#087f8c}
+.login-submit{background:linear-gradient(120deg,#087f8c,#1769aa)!important;box-shadow:0 10px 22px rgba(8,127,140,.20)!important}
+.login-submit:hover{filter:brightness(1.04);transform:translateY(-1px)}
+.role-card{border-color:#d4e6eb!important;background:#fbfefe!important}.role-card.active,.role-card[aria-pressed="true"]{border-color:#07858b!important;background:#e9f9f6!important;box-shadow:0 0 0 2px rgba(8,127,140,.09)}
+.role-card>span{background:#e1f5f2!important;color:#087f8c!important}.role-hint{background:#eef9fb!important;border-color:#cde9ec!important}.login-create{color:#087b87!important}
+.offline-how ol{padding-left:24px;display:grid;gap:12px;line-height:1.55}.offline-how li{padding-left:4px}.offline-how li b{color:#145b6d}.offline-how p{margin-top:18px}
+@media(max-width:900px){.login-layout{grid-template-columns:1fr;padding:30px 8px}.login-intro{padding:24px}}
+@media(prefers-reduced-motion:reduce){.login-submit{transition:none}}
