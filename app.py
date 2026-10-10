@@ -189,6 +189,17 @@ limiter = Limiter(
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
 log = logging.getLogger("swastya_assist")
 
+
+@app.after_request
+def log_triage_rejection_code(response):
+    """Log only a non-sensitive rejection code for quick triage diagnosis."""
+    if request.path == "/api/triage" and response.status_code == 422:
+        payload = response.get_json(silent=True) if response.is_json else None
+        code = payload.get("code") if isinstance(payload, dict) else None
+        # Never log request fields, free text, patient identifiers, or report content.
+        log.warning("Triage request rejected: status=422 code=%s", code or "UNCLASSIFIED")
+    return response
+
 ALLOWED_REPORT_TYPES = {"image/png", "image/jpeg", "application/pdf"}
 ALLOWED_AUDIO_TYPES = {
     "audio/webm",
@@ -1567,8 +1578,9 @@ HEALTH_CONTEXT_TERMS = {
     "illness", "disease", "diagnosis", "treatment", "injury", "wound", "pain", "fever", "cough", "cold",
     "headache", "vomit", "vomiting", "diarrhea", "breathing", "breathless", "chest", "blood", "urine",
     # Common symptoms that should not need an exact keyword such as "fever" or "pain".
-    "fatigue", "dizziness", "dizzy", "nausea", "nauseous", "sore throat", "abdominal pain",
-    "stomach pain", "stomach ache", "body ache", "body aches", "chills", "constipation",
+    "fatigue", "tired", "weakness", "dizziness", "dizzy", "nausea", "nauseous", "nauseated",
+    "sore throat", "abdominal pain", "stomach pain", "stomach ache", "stomach cramps",
+    "body ache", "body aches", "chills", "constipation", "shortness of breath", "sweating",
     "itching", "itchy", "bleeding", "fainting", "numbness", "tingling", "palpitations",
     "wheezing", "seizure", "seizures", "migraine", "back pain", "joint pain", "muscle pain",
     "menstrual", "period pain", "urinary", "burning urination", "dehydration", "loss of appetite",
