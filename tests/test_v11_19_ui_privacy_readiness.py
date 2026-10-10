@@ -16,11 +16,11 @@ def test_checkbox_rules_override_text_input_sizing():
 
 
 def test_workspace_header_and_navigation_are_consistent():
-    assert '<h1 id="pageTitle">Clinical Console</h1>' in INDEX
+    assert '<h1 id="pageTitle">{% if current_user.role == "admin" %}Admin Console{% else %}Clinical Console{% endif %}</h1>' in INDEX
     assert "AI Reports &amp; OCR" in INDEX
     assert "Privacy &amp; Security Overview" in INDEX
     assert "PS03 Demo Simulator" in INDEX
-    assert "textContent = 'Clinical Console'" in JS
+    assert "textContent = document.body?.dataset.userRole === 'admin' ? 'Admin Console' : 'Clinical Console'" in JS
     assert '{% if current_user.role == "admin" %}Admin dashboard' in INDEX
 
 
@@ -51,7 +51,7 @@ def test_rate_limit_store_reads_vercel_redis_integration_and_checks_backend():
 def test_privacy_copy_matches_the_actual_redacted_derivative_flow():
     assert "only the redacted derivative if redaction and report-identity checks succeed" in INDEX
     assert "OCR can miss identifiers" in INDEX
-    assert "a failed required redaction or report-identity check blocks external transfer" in INDEX
+    assert "A failed required redaction or report-identity check blocks external transfer" in INDEX
     assert 'data-view="privacy"' in INDEX
     assert 'id="view-privacy"' in INDEX
 
