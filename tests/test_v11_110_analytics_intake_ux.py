@@ -23,8 +23,8 @@ def test_intake_stops_empty_submission_before_an_ai_request():
 
 
 def test_intake_and_ocr_purposes_are_distinct():
-    assert "use AI Reports &amp; OCR when a document is the main input" in INDEX
-    assert "focused report-first workflow" in INDEX
+    assert "use AI Reports & OCR when a document is the main input" in INDEX
+    assert "Use this focused report-first workflow" in INDEX
 
 
 def test_v11_1_10_release_metadata_matches():
