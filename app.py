@@ -1566,6 +1566,13 @@ HEALTH_CONTEXT_TERMS = {
     "health", "medical", "medicine", "medication", "patient", "doctor", "clinic", "hospital", "symptom",
     "illness", "disease", "diagnosis", "treatment", "injury", "wound", "pain", "fever", "cough", "cold",
     "headache", "vomit", "vomiting", "diarrhea", "breathing", "breathless", "chest", "blood", "urine",
+    # Common symptoms that should not need an exact keyword such as "fever" or "pain".
+    "fatigue", "dizziness", "dizzy", "nausea", "nauseous", "sore throat", "abdominal pain",
+    "stomach pain", "stomach ache", "body ache", "body aches", "chills", "constipation",
+    "itching", "itchy", "bleeding", "fainting", "numbness", "tingling", "palpitations",
+    "wheezing", "seizure", "seizures", "migraine", "back pain", "joint pain", "muscle pain",
+    "menstrual", "period pain", "urinary", "burning urination", "dehydration", "loss of appetite",
+    "runny nose", "congestion", "sneezing", "phlegm", "blurred vision", "ear pain", "eye pain",
     "sugar", "diabetes", "pressure", "hypertension", "pregnancy", "pregnant", "maternal", "child", "infant",
     "infection", "allergy", "allergic", "rash", "swelling", "fracture", "burn", "ultrasound", "xray", "x-ray",
     "mri", "ct scan", "scan", "ecg", "ekg", "lab", "laboratory", "pathology", "radiology", "prescription",
@@ -2417,7 +2424,8 @@ def triage():
     # and is intentionally excluded from all Gemini/AI prompt and fingerprint data.
     contact_phone = normalize_contact_phone(request.form.get("contact_phone", ""))
     if contact_phone and not valid_contact_phone(contact_phone):
-        return jsonify(error="Contact number is invalid. Use an international format such as +15550100100 for demo data."), 422
+        log.warning("Triage rejected before external API: code=INVALID_CONTACT_PHONE")
+        return jsonify(error="Contact number is invalid. Use an international format such as +15550100100 for demo data.", code="INVALID_CONTACT_PHONE"), 422
     age_raw = request.form.get("age", "").strip()
     age = int(age_raw) if age_raw.isdigit() and 0 <= int(age_raw) <= 130 else None
 
@@ -2439,7 +2447,8 @@ def triage():
         supplied_identity = f"{patient_name} {address} {symptoms} {report}"
         for label, pattern in pii_patterns.items():
             if re.search(pattern, supplied_identity, re.I):
-                return jsonify(error=f"Demo mode blocks direct identifiers such as {label}. Use synthetic/public sample data only."), 422
+                log.warning("Triage rejected before external API: code=DEMO_DIRECT_IDENTIFIER_BLOCKED category=%s", label)
+                return jsonify(error=f"Demo mode blocks direct identifiers such as {label}. Use synthetic/public sample data only.", code="DEMO_DIRECT_IDENTIFIER_BLOCKED"), 422
     if language not in ALLOWED_LANGUAGES:
         return jsonify(error="Unsupported language"), 400
     if scenario not in ALLOWED_SCENARIOS:
@@ -2454,6 +2463,7 @@ def triage():
     # healthcare image/PDF here based on an incidental filename token or sparse optional context.
     relevance_error = health_relevance_error(symptoms, report, filename_hint, has_upload=has_upload) if HEALTH_INPUT_GATE else None
     if relevance_error:
+        log.info("Triage rejected before external API: code=NON_HEALTH_INPUT")
         return jsonify(error=relevance_error, code="NON_HEALTH_INPUT"), 422
     image_bytes = None
     mime = None
