@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Swastya Assist — Secure Sign In</title>
+<link rel="stylesheet" href="/static/style.css?v=18.0">
+<link rel="icon" href="/static/favicon.ico?v=18.0" type="image/x-icon"></head>
+<body class="login-page">
+<div class="login-shell">
+  <div class="login-brand-row">
+    <a class="login-back" href="/">← Back to home</a>
+    <a class="login-brand" href="/"><img class="login-logo-img" src="/static/swastya-assist-logo.jpg?v=18.0" alt="Swastya Assist logo"><span><b>Swastya Assist</b><small>Smarter Triage. Healthier Communities.</small></span></a>
+  </div>
+  <div class="login-layout">
+    <section class="login-intro">
+      <span class="login-kicker">SECURE HEALTH FACILITY ACCESS</span>
+      <h1>One secure sign-in for the <span>right workflow.</span></h1>
+      <p>Access the clinical review console or the administration workspace based on your authorized account role.</p>
+      <div class="login-workflow">
+        <div><span>01</span><b>Authenticate</b><small>Protected account access</small></div>
+        <div><span>02</span><b>Work by role</b><small>Clinical or admin tools</small></div>
+        <div><span>03</span><b>Review safely</b><small>Human judgment stays central</small></div>
+      </div>
+      <div class="login-safety"><span>✓</span><div><b>Prototype safety mode</b><small>Use synthetic/public data only. Swastya Assist does not diagnose or prescribe.</small></div></div>
+    </section>
+    <section class="login-card">
+      <div class="login-card-head">
+        <div><span class="login-card-kicker">WELCOME BACK</span><h2>Sign in</h2><p>Use your authorized Swastya Assist account.</p></div>
+        <div class="secure-pill">🔒 Secure</div>
+      </div>
+      {% if error %}<div class="login-error">{{error}}</div>{% endif %}
+      <div class="role-hint" id="roleHint"><b>Clinical workspace</b><span>Doctors and reviewers are routed to the clinical console.</span></div>
+      <form method="post" class="login-form">
+        <input type="hidden" name="csrf_token" value="{{csrf_token}}"><input type="hidden" id="selectedRole" name="role" value="{{ selected_role or 'clinical' }}">
+        <label>Username<input id="username" name="username" autocomplete="username" placeholder="Enter your username" required></label>
+        <label>Password<div class="password-wrap"><input id="password" type="password" name="password" autocomplete="current-password" placeholder="Enter your password" required><button type="button" class="password-toggle" id="togglePassword" aria-label="Show password">Show</button></div></label>
+        <button class="login-submit" type="submit">Sign in <span>→</span></button>
+      </form>
+      <div class="login-divider"><span>ROLE-BASED ACCESS</span></div>
+      <div class="role-cards">
+        <button type="button" class="role-card active" data-role="clinical"><span>♙</span><div><b>Clinical team</b><small>Doctor / reviewer console</small></div></button>
+        <button type="button" class="role-card" data-role="admin"><span>⚙</span><div><b>Administrator</b><small>Admin dashboard & users</small></div></button>
+      </div>
+      <a class="login-create" href="/register">Create a Doctor / Reviewer account request →</a><p class="login-note">Doctor and Reviewer requests require Administrator approval. Admin accounts are created by an authorized administrator.</p>
+    </section>
+  </div>
+  <div class="login-footer">© 2026 Swastya Assist · Educational hackathon prototype · Not for clinical use</div>
+</div>
+<script src="/static/login.js?v=18.0"></script>
+</body>
+</html>

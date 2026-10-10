@@ -1,0 +1,40 @@
+SWASTYA ASSIST V10.4.3 RELEASE VERIFICATION
+============================================
+
+Transport
+- Model interactions use direct httpx POST requests to the stable GenerateContent REST API.
+- The application does not use google-genai SDK model interaction calls.
+- No automatic retry layer is configured in the model interaction path.
+- No automatic fallback model is used.
+- A database AIRequestClaim provides durable request_id + attempt_no idempotency.
+
+AI attempt policy
+- Fresh user action: one provider attempt.
+- Provider/app AI failure: processing stops.
+- Server returns one single-use Retry token for the first failed attempt only.
+- Retry: one second provider attempt for the same request_id.
+- A failed retry has no third retry token.
+- Duplicate browser/proxy submissions for the same attempt are blocked before another provider POST.
+
+Gemini output compatibility
+- Current GenerateContent API candidates[].content.parts[].text is supported.
+- The parser accepts current candidates[].content.parts[].text responses.
+- JSON is requested in the prompt and validated locally.
+
+Voice
+- Voice recordings up to the application limit are sent inline as base64 audio in one provider interaction.
+- The same interaction returns transcript + translation as structured JSON.
+- No Files API upload/delete cycle is used.
+- No separate translation interaction is used.
+
+Safety and review
+- Non-health input/report gate remains enabled by default.
+- Uploaded filenames are never trusted as proof that a document is medical.
+- Urgent AI cases require explicit human verification before Reviewed/Escalated can be saved.
+- AI output remains advisory and non-diagnostic.
+
+Deployment
+- Local: SQLite via blank DATABASE_URL.
+- Vercel: managed PostgreSQL via DATABASE_URL.
+- Vercel readiness requires stable secrets, encryption key, cron secret and non-memory rate-limit storage.
+- Static assets in public/static mirror static/.
