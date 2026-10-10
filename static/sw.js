@@ -1,11 +1,11 @@
-/* Swastya Assist V11.1.10: cache only the generic offline capture shell and its assets.
+/* Swastya Assist V11.1.11: cache only the generic offline capture shell and its assets.
    Never cache authenticated pages, session data, API responses, uploaded reports, or AI output. */
 'use strict';
-const CACHE_NAME = 'swastya-offline-shell-v1110';
+const CACHE_NAME = 'swastya-offline-shell-v1111';
 const PRECACHE = [
   '/offline-capture',
-  '/static/offline_capture.css?v=2',
-  '/static/offline_capture.js?v=2',
+  '/static/offline_capture.css?v=3',
+  '/static/offline_capture.js?v=3',
   '/static/swastya-assist-logo.jpg?v=35.0',
   '/static/favicon.ico?v=35.0'
 ];
