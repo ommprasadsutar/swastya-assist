@@ -29,4 +29,4 @@ def test_visual_refresh_and_phone_touch_targets_present():
     assert '--blue:#176b87' in CSS
     assert 'class="nav-icon' in INDEX
     assert 'min-height:44px' in CSS
-    assert '/static/style.css?v=42.0' in INDEX
+    assert '/static/style.css?v=43.0' in INDEX
