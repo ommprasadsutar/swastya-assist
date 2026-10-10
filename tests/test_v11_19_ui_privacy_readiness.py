@@ -72,3 +72,21 @@ def test_core_views_and_public_asset_mirrors_remain():
     assert (ROOT / "static" / "app.js").read_bytes() == (ROOT / "public" / "static" / "app.js").read_bytes()
     assert (ROOT / "static" / "style.css").read_bytes() == (ROOT / "public" / "static" / "style.css").read_bytes()
     assert (ROOT / "static" / "offline_capture.css").read_bytes() == (ROOT / "public" / "static" / "offline_capture.css").read_bytes()
+
+
+def test_demo_report_route_never_streams_original_upload_bytes():
+    report_route = APP[APP.index('@app.get("/api/cases/<cid>/report")'):APP.index('@app.get("/api/cases/<cid>/packet")')]
+    assert "if DEMO_ONLY_MODE:" in report_route
+    assert "redact_document_for_ai(raw, mime, c.patient_name or \"\")" in report_route
+    assert "patient_name_matches_report(c.patient_name or \"\", redacted.detected_report_name)" in report_route
+    assert 'code="REPORT_PREVIEW_REDACTION_FAILED"' in report_route
+    assert 'code="REPORT_IDENTITY_UNVERIFIED"' in report_route
+    assert 'download_name=filename' in report_route
+    assert "redact_document_for_ai(raw, mime, c.patient_name or \"\")" in report_route
+
+
+def test_demo_case_packet_masks_referral_evidence_and_followup_text():
+    packet = APP[APP.index('def case_packet(cid):'):APP.index("def _validate_reviewer_collections", APP.index('def case_packet(cid):'))]
+    assert '"referral_destination": _demo_safe_value(c.referral_destination, c.patient_name) if DEMO_ONLY_MODE' in packet
+    assert '"evidence_review": _demo_safe_value(c.evidence_review or [], c.patient_name) if DEMO_ONLY_MODE' in packet
+    assert '"follow_up_answers": _demo_safe_value(c.follow_up_answers or [], c.patient_name) if DEMO_ONLY_MODE' in packet
