@@ -2144,7 +2144,7 @@ def patient_portal():
 
 
 @app.get("/console")
-@require_role("health_worker", "nurse", "doctor", "medical_officer", "reviewer", "admin")
+@require_role("health_worker", "nurse", "doctor", "medical_officer", "reviewer")
 def index():
     cases = facility_case_query().order_by(Case.created_at.desc()).limit(100).all()
     return render_template("index.html", cases=[serialize_case(c) for c in cases])
