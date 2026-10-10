@@ -1698,7 +1698,7 @@ def serialize_case(c, *, include_sensitive=False):
         "gender": c.gender,
         "address": "Synthetic facility / locality" if DEMO_ONLY_MODE else c.address,
         "consent": c.consent,
-        "report_filename": c.report_filename,
+        "report_filename": ("synthetic-report" if (c.report_data or c.report_path) else "") if DEMO_ONLY_MODE else c.report_filename,
         "report_available": bool(c.report_data) or bool(c.report_path),
         "language": c.language,
         "symptoms": _demo_safe_value(c.symptoms, known_name) if DEMO_ONLY_MODE else c.symptoms,
