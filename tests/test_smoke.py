@@ -301,3 +301,22 @@ def test_demo_report_route_returns_only_redacted_preview_and_fails_closed(monkey
         if stored:
             db.session.delete(stored)
             db.session.commit()
+
+
+
+def test_health_input_gate_accepts_common_symptom_phrasing_without_disabling_unrelated_input_block():
+    # These narratives used to be rejected when no currently-recognized health token
+    # appeared, even though they describe common symptoms.
+    examples = [
+        "I have been feeling dizzy and very tired since yesterday.",
+        "Nauseated with weakness and chills for two days.",
+        "Shortness of breath and sweating started this morning.",
+        "Abdominal pain and stomach cramps since last night.",
+    ]
+    for narrative in examples:
+        assert app_module.health_relevance_error(narrative, "") is None, narrative
+
+    # The change must not turn the relevance gate into an allow-all.
+    assert app_module.health_relevance_error(
+        "Please solve this programming assignment for my college exam.", ""
+    ) is not None
