@@ -83,4 +83,4 @@ def test_clinical_role_copy_covers_all_supported_roles() :
     register = (ROOT/'templates/register.html').read_text(encoding='utf-8')
     for role in ('Health Worker','Nurse','Doctor','Medical Officer','Reviewer'):
         assert role in register
-    assert 'Authorized clinical team members are routed to the Clinical Console.' in login
+    assert 'Doctors and authorized clinical staff are routed to the clinical workspace; administrators use Administration.' in login
