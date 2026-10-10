@@ -16,7 +16,7 @@ def test_checkbox_rules_override_text_input_sizing():
 
 
 def test_workspace_header_and_navigation_are_consistent():
-    assert '<h1 id="pageTitle">{% if current_user.role == "admin" %}Admin Console{% else %}Clinical Console{% endif %}</h1>' in INDEX
+    assert '<h1 id="pageTitle">{% if current_user.role == "admin" %}Administration{% elif current_user.role == "doctor" %}Doctor Dashboard{% else %}Clinical Console{% endif %}</h1>' in INDEX
     assert "AI Reports &amp; OCR" in INDEX
     assert "Privacy &amp; Security Overview" in INDEX
     assert "PS03 Demo Simulator" in INDEX
@@ -57,8 +57,8 @@ def test_privacy_copy_matches_the_actual_redacted_derivative_flow():
 
 
 def test_offline_style_cache_is_bumped_and_service_worker_avoids_sensitive_pages():
-    assert "/static/offline_capture.css?v=2" in OFFLINE_HTML
-    assert "/static/offline_capture.js?v=2" in OFFLINE_HTML
+    assert "/static/offline_capture.css?v=3" in OFFLINE_HTML
+    assert "/static/offline_capture.js?v=3" in OFFLINE_HTML
     assert "swastya-offline-shell-v1110" in SW
     for route in ("'/console'", "'/login'", "'/register'", "'/admin'", "'/logout'"):
         assert route in SW
