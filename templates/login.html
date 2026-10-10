@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Swastya Assist — Secure Sign In</title>
-<link rel="stylesheet" href="/static/style.css?v=42.0">
+<link rel="stylesheet" href="/static/style.css?v=43.0">
 <link rel="icon" href="/static/favicon.ico?v=35.0" type="image/x-icon"></head>
 <body class="login-page">
 <div class="login-shell">
@@ -21,7 +21,7 @@
         <div><span>02</span><b>Work by role</b><small>Only the right workspace</small></div>
         <div><span>03</span><b>Review safely</b><small>Human judgment stays central</small></div>
       </div>
-      <div class="login-safety"><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 20 6v5c0 5-3.4 8.5-8 10-4.6-1.5-8-5-8-10V6l8-3Z"/><path d="m8.5 12 2.2 2.2 4.8-5"/></svg></span><div><b>Prototype safety mode</b><small>Use synthetic/public data only. Swastya Assist does not diagnose or prescribe.</small></div></div>
+      <div class="login-safety"><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 20 6v5c0 5-3.4 8.5-8 10-4.6-1.5-8-5-8-10V6l8-3Z"/><path d="m8.5 12 2.2 2.2 4.8-5"/></svg></span><div><b>Prototype safety mode</b><small>Synthetic/public data only. Swastya Assist does not diagnose or prescribe.</small></div></div>
     </section>
     <section class="login-card">
       <div class="login-card-head">
@@ -29,7 +29,7 @@
         <div class="secure-pill with-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg> Secure</div>
       </div>
       {% if error %}<div class="login-error" role="alert">{{error}}</div>{% endif %}
-      <div class="role-hint" id="roleHint"><b>Clinical workspace</b><span>Authorized clinical team members are routed to the Clinical Console.</span></div>
+      <div class="role-hint" id="roleHint"><b>Clinical workspace</b><span>Doctors and authorized clinical staff are routed to the clinical workspace; administrators use Administration.</span></div>
       <form method="post" class="login-form" novalidate>
         <input type="hidden" name="csrf_token" value="{{csrf_token}}"><input type="hidden" id="selectedRole" name="role" value="{{ selected_role or 'clinical' }}">
         <label>Username<input id="username" name="username" autocomplete="username" placeholder="Enter clinical team username" required></label>
