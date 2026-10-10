@@ -17,7 +17,7 @@ def _load_function_from_app(name):
 def test_release_version_and_one_shot_generate_content_transport():
     app = (ROOT / "app.py").read_text(encoding="utf-8")
     env = (ROOT / ".env.example").read_text(encoding="utf-8")
-    assert 'APP_VERSION = "11.1.8"' in app
+    assert 'APP_VERSION = "11.1.9"' in app
     assert 'GEMINI_GENERATE_API_VERSION = "v1beta"' in app
     assert 'GEMINI_GENERATE_URL_TEMPLATE = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"' in app
     assert 'httpx.post(' in app
