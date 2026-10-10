@@ -21,7 +21,7 @@ def test_upload_and_voice_controls():
 def test_review_cache_and_contact_ui():
     html = (ROOT / "templates/index.html").read_text(encoding="utf-8")
     js = (ROOT / "static/app.js").read_text(encoding="utf-8")
-    assert '/static/app.js?v=39.0' in html
+    assert '/static/app.js?v=40.0' in html
     assert 'Final operational priority' in js
     assert 'name="contact_patient"' in js
     assert 'name="contact_phone"' in js
