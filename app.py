@@ -37,7 +37,7 @@ except Exception:  # pragma: no cover - dependency is part of requirements.txt
     Fernet = None
     InvalidToken = Exception
 
-APP_VERSION = "11.1.9"
+APP_VERSION = "11.1.10"
 BASE = Path(__file__).resolve().parent
 TEST_MODE = os.getenv("SWASTYA_TEST_MODE", "0") == "1"
 load_dotenv(BASE / ".env", override=not TEST_MODE)
@@ -2163,7 +2163,7 @@ def patient_portal():
 
 
 @app.get("/console")
-@require_role("health_worker", "nurse", "doctor", "medical_officer", "reviewer", "admin")
+@require_role("health_worker", "nurse", "doctor", "medical_officer", "reviewer")
 def index():
     cases = facility_case_query().order_by(Case.created_at.desc()).limit(100).all()
     return render_template("index.html", cases=[serialize_case(c) for c in cases])
@@ -2436,8 +2436,7 @@ def triage():
     # and is intentionally excluded from all Gemini/AI prompt and fingerprint data.
     contact_phone = normalize_contact_phone(request.form.get("contact_phone", ""))
     if contact_phone and not valid_contact_phone(contact_phone):
-        log.warning("Triage rejected before external API: code=INVALID_CONTACT_PHONE")
-        return jsonify(error="Contact number is invalid. Use an international format such as +15550100100 for demo data.", code="INVALID_CONTACT_PHONE"), 422
+        return jsonify(error="Contact number is invalid. Use an international format such as +15550100100 for demo data."), 422
     age_raw = request.form.get("age", "").strip()
     age = int(age_raw) if age_raw.isdigit() and 0 <= int(age_raw) <= 130 else None
 
@@ -2459,8 +2458,7 @@ def triage():
         supplied_identity = f"{patient_name} {address} {symptoms} {report}"
         for label, pattern in pii_patterns.items():
             if re.search(pattern, supplied_identity, re.I):
-                log.warning("Triage rejected before external API: code=DEMO_DIRECT_IDENTIFIER_BLOCKED category=%s", label)
-                return jsonify(error=f"Demo mode blocks direct identifiers such as {label}. Use synthetic/public sample data only.", code="DEMO_DIRECT_IDENTIFIER_BLOCKED"), 422
+                return jsonify(error=f"Demo mode blocks direct identifiers such as {label}. Use synthetic/public sample data only."), 422
     if language not in ALLOWED_LANGUAGES:
         return jsonify(error="Unsupported language"), 400
     if scenario not in ALLOWED_SCENARIOS:
@@ -2475,7 +2473,6 @@ def triage():
     # healthcare image/PDF here based on an incidental filename token or sparse optional context.
     relevance_error = health_relevance_error(symptoms, report, filename_hint, has_upload=has_upload) if HEALTH_INPUT_GATE else None
     if relevance_error:
-        log.info("Triage rejected before external API: code=NON_HEALTH_INPUT")
         return jsonify(error=relevance_error, code="NON_HEALTH_INPUT"), 422
     image_bytes = None
     mime = None
