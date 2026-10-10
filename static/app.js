@@ -278,6 +278,18 @@ async function submitTriage(form, out, btn, retry=false) {
     if (out) { out.classList.remove('hidden'); out.innerHTML = '<div class="error-card"><b>Privacy Gate</b><span>Nothing was sent to Gemini. Review the file, then explicitly opt in under External AI file gate to continue. The original file is not automatically masked.</span></div>'; }
     return;
   }
+  const hasNarrativeOrReportText = Boolean(
+    String(form.elements.symptoms?.value || '').trim() ||
+    String(form.elements.report_text?.value || '').trim()
+  );
+  if (!retry && !uploadChosen && !hasNarrativeOrReportText) {
+    if (out) {
+      out.classList.remove('hidden');
+      out.innerHTML = '<div class="error-card" role="alert"><b>More information needed</b><span>Enter a symptom narrative or report text, or upload a report, before generating a triage summary. No AI request was made.</span></div>';
+    }
+    form.querySelector('#symptoms')?.focus();
+    return;
+  }
   __triageInFlight = true;
   setBusy(btn, true, retry ? 'Retrying AI…' : 'Processing…');
   out?.classList.remove('hidden');
@@ -515,8 +527,8 @@ $('geminiBadge')?.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '
 
 
 // Analytics
-async function loadAnalytics(){try{const box=$('analyticsError'); if(box) box.classList.add('hidden'); const a=await jsonFetch('/api/analytics'); $('aTotal').textContent=a.total; $('aUrgent').textContent=a.urgent; $('aReviewed').textContent=a.reviewed; $('aRate').textContent=a.review_rate+'%'; bars('#riskBars',a.risks); bars('#langBars',a.languages); bars('#statusBars',a.statuses);}catch(e){console.error(e); const box=$('analyticsError'); if(box){box.textContent=friendlyError(e,'Analytics are temporarily unavailable.');box.classList.remove('hidden');}}}
-function bars(sel,obj){const el=qs(sel);if(!el)return;const vals=Object.entries(obj||{}),max=Math.max(1,...vals.map(x=>x[1]));el.innerHTML=vals.length?vals.map(([k,v])=>{const pct=Math.round((v/max)*100);const bucket=Math.min(100,Math.max(0,Math.round(pct/10)*10));return `<div class="bar"><div class="bar-head"><span>${esc(k)}</span><b>${v}</b></div><div class="bar-track"><div class="bar-fill w-${bucket}"></div></div></div>`}).join(''):'<p class="empty">No data yet.</p>';}
+async function loadAnalytics(){try{const box=$('analyticsError'); if(box) box.classList.add('hidden'); const empty=$('analyticsEmpty'); if(empty) empty.classList.add('hidden'); const a=await jsonFetch('/api/analytics'); const total=Number(a.total||0); $('aTotal').textContent=total; $('aUrgent').textContent=a.urgent; $('aReviewed').textContent=a.reviewed; $('aRate').textContent=a.review_rate+'%'; if(empty && total===0){empty.textContent='No encounters are available yet. Create a synthetic case in Patient Intake to populate these charts. Zero values here reflect an empty dataset, not measured facility performance.'; empty.classList.remove('hidden');} bars('#riskBars',a.risks); bars('#langBars',a.languages); bars('#statusBars',a.statuses);}catch(e){console.error(e); const empty=$('analyticsEmpty'); if(empty) empty.classList.add('hidden'); const box=$('analyticsError'); if(box){box.textContent=friendlyError(e,'Analytics are temporarily unavailable.');box.classList.remove('hidden');}}}
+function bars(sel,obj){const el=qs(sel);if(!el)return;const vals=Object.entries(obj||{}).filter(([,v])=>Number(v)>0),max=Math.max(1,...vals.map(x=>Number(x[1])));el.innerHTML=vals.length?vals.map(([k,v])=>{const pct=Math.round((Number(v)/max)*100);const bucket=Math.min(100,Math.max(0,Math.round(pct/10)*10));return `<div class="bar"><div class="bar-head"><span>${esc(k)}</span><b>${Number(v)}</b></div><div class="bar-track"><div class="bar-fill w-${bucket}"></div></div></div>`}).join(''):'<p class="empty">No data yet.</p>';}
 
 // Safety confirmation for admin destructive actions.
 document.addEventListener('submit',e=>{const f=e.target.closest('form[data-confirm]');if(f&&!confirm(f.dataset.confirm))e.preventDefault();});

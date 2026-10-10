@@ -37,7 +37,7 @@ except Exception:  # pragma: no cover - dependency is part of requirements.txt
     Fernet = None
     InvalidToken = Exception
 
-APP_VERSION = "11.1.9"
+APP_VERSION = "11.1.10"
 BASE = Path(__file__).resolve().parent
 TEST_MODE = os.getenv("SWASTYA_TEST_MODE", "0") == "1"
 load_dotenv(BASE / ".env", override=not TEST_MODE)

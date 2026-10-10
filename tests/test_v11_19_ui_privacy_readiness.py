@@ -59,7 +59,7 @@ def test_privacy_copy_matches_the_actual_redacted_derivative_flow():
 def test_offline_style_cache_is_bumped_and_service_worker_avoids_sensitive_pages():
     assert "/static/offline_capture.css?v=2" in OFFLINE_HTML
     assert "/static/offline_capture.js?v=2" in OFFLINE_HTML
-    assert "swastya-offline-shell-v119" in SW
+    assert "swastya-offline-shell-v1110" in SW
     for route in ("'/console'", "'/login'", "'/register'", "'/admin'", "'/logout'"):
         assert route in SW
 
