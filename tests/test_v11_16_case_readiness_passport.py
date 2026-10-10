@@ -40,5 +40,5 @@ def test_landing_page_explains_demo_without_claiming_a_clinical_score():
 
 def test_asset_cache_busting_is_updated():
     html = (BASE / "templates" / "index.html").read_text(encoding="utf-8")
-    assert "/static/style.css?v=42.0" in html
+    assert "/static/style.css?v=43.0" in html
     assert "/static/app.js?v=40.0" in html
