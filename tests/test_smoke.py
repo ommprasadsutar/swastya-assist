@@ -226,3 +226,78 @@ def test_offline_sync_creates_needs_review_case_idempotently_without_ai(monkeypa
         assert duplicate["duplicate"] is True
         assert duplicate["case_id"] == synced["case_id"]
         assert Case.query.filter_by(patient_ref=patient_ref).count() == 1
+
+
+
+def test_demo_report_route_returns_only_redacted_preview_and_fails_closed(monkeypatch):
+    import uuid
+    from privacy_redaction import RedactionError, RedactionResult
+
+    raw_secret_bytes = b"RAW_PRIVATE_REPORT_BYTES_MUST_NEVER_BE_RETURNED"
+    case = Case(
+        id=uuid.uuid4().hex,
+        facility_id=app_module.DEFAULT_FACILITY_ID,
+        patient_ref="SYN-REPORT-PRIVACY-01",
+        patient_name="Synthetic Patient",
+        age=30,
+        gender="Female",
+        address="Synthetic Facility",
+        consent=True,
+        report_filename="private-original-filename.jpg",
+        report_mime="image/jpeg",
+        report_data=raw_secret_bytes,
+        language="English",
+        symptoms="Synthetic report preview test.",
+        report_text="",
+        ai_note={"summary": "Synthetic test only."},
+        risk="Routine review",
+        source="Patient intake",
+    )
+    with app.app_context():
+        db.session.add(case)
+        db.session.commit()
+        case_id = case.id
+
+    def fake_redact(data, mime_type, known_name=""):
+        assert data == raw_secret_bytes
+        assert mime_type == "image/jpeg"
+        assert known_name == "Synthetic Patient"
+        return RedactionResult(
+            data=b"REDACTED_PREVIEW_BYTES",
+            mime_type="image/jpeg",
+            redacted_lines=2,
+            pages=1,
+            detected_report_name="Synthetic Patient",
+        )
+
+    with app.test_client() as client:
+        login(client)
+        monkeypatch.setattr(app_module, "redact_document_for_ai", fake_redact)
+        response = client.get(f"/api/cases/{case_id}/report")
+        assert response.status_code == 200
+        assert response.data == b"REDACTED_PREVIEW_BYTES"
+        assert response.mimetype == "image/jpeg"
+        assert b"REDACTED_PREVIEW_BYTES" in response.data
+        assert raw_secret_bytes not in response.data
+        assert b"private-original-filename" not in response.headers.get("Content-Disposition", "").encode()
+
+        packet_response = client.get(f"/api/cases/{case_id}/packet")
+        assert packet_response.status_code == 200
+        packet = packet_response.get_json()["packet"]
+        assert packet["patient"]["name"] == "Demo patient"
+        assert packet["inputs"]["report_filename"] == "synthetic-report"
+
+        def reject_redaction(*_args, **_kwargs):
+            raise RedactionError("OCR unavailable")
+
+        monkeypatch.setattr(app_module, "redact_document_for_ai", reject_redaction)
+        rejected = client.get(f"/api/cases/{case_id}/report")
+        assert rejected.status_code == 422
+        assert rejected.get_json()["code"] == "REPORT_PREVIEW_REDACTION_FAILED"
+        assert raw_secret_bytes not in rejected.data
+
+    with app.app_context():
+        stored = db.session.get(Case, case_id)
+        if stored:
+            db.session.delete(stored)
+            db.session.commit()
