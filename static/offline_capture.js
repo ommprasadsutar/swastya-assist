@@ -1,5 +1,8 @@
 (() => {
   'use strict';
+  // Offline capture must remain silent: cancel any stale browser speech and never synthesize voice here.
+  try { window.speechSynthesis?.cancel(); } catch (_) {}
+  window.addEventListener('offline', () => { try { window.speechSynthesis?.cancel(); } catch (_) {} });
   const DB_NAME = 'swastya-offline-v118';
   const DB_VERSION = 1;
   const PBKDF2_ITERATIONS = 310000;
@@ -210,7 +213,7 @@
     $('refreshQueueBtn').addEventListener('click',renderQueue);
     $('clearQueueBtn').addEventListener('click',clearQueue);
     window.addEventListener('online',updateNetwork);
-    window.addEventListener('offline',updateNetwork);
+    window.addEventListener('offline',() => { try { window.speechSynthesis?.cancel(); } catch (_) {} updateNetwork(); });
     updateNetwork();
   }
   function esc(value) { return String(value ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
