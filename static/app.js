@@ -67,8 +67,7 @@ function showView(view) {
   qsa('.view').forEach(x => x.classList.remove('active'));
   target.classList.add('active');
   qsa('.nav').forEach(x => x.classList.toggle('active', x.dataset.view === view));
-  const titles = {intake:'Patient intake', dashboard:'Clinical dashboard', readiness:'Case Readiness Passport', ocr:'Gemini reports / OCR', analytics:'Analytics', privacy:'Privacy & AI Gate'};
-  if ($('pageTitle')) $('pageTitle').textContent = titles[view] || 'Swastya Assist';
+  if ($('pageTitle')) $('pageTitle').textContent = 'Clinical Console';
   if (view === 'dashboard') loadDashboard();
   if (view === 'analytics') loadAnalytics();
   if (view === 'ocr') checkGemini();
@@ -554,7 +553,7 @@ function initReadinessPassport() {
     rpLanguage: 'English',
     rpReport: true,
     rpTranscript: true,
-    rpConsent: true,
+    rpConsent: false,
     rpOffline: false
   };
 
@@ -615,7 +614,7 @@ function initReadinessPassport() {
     const consent = $rp('rpConsent').checked;
     $rp('rpNetworkState').className = 'rp-network ' + (offline ? 'offline' : 'online');
     $rp('rpNetworkState').textContent = offline ? '● OFFLINE SIMULATION' : '● DEMO ONLINE';
-    $rp('rpQueue').textContent = demoQueue ? `Demo queue (${demoQueue})` : 'Save to demo queue';
+    $rp('rpQueue').textContent = demoQueue ? `Demo queue (${demoQueue})` : 'Add simulated item';
     $rp('rpQueue').disabled = !offline || !consent || demoQueue >= 99;
     $rp('rpReconnect').disabled = !offline;
     $rp('rpExport').disabled = !consent;
