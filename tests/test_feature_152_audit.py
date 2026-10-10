@@ -31,7 +31,7 @@ def test_audit_summary_matches_item_rows():
 
 def test_key_current_hardening_items_are_reflected_in_source():
     assert 'if include_sensitive:' in APP
-    assert 'app.js?v=39.0' in (ROOT/'templates/index.html').read_text(encoding='utf-8')
+    assert 'app.js?v=40.0' in (ROOT/'templates/index.html').read_text(encoding='utf-8')
     assert 'style.css?v=42.0' in (ROOT/'templates/index.html').read_text(encoding='utf-8')
     assert '__ocrInFlight = false' in JS
     assert 'voiceAiStatus' in JS
