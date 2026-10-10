@@ -1,0 +1,37 @@
+/* Swastya Assist focused UI refresh */
+:root{--nav:#123e52;--nav2:#087f8c;--blue:#087f8c;--blue2:#086875;--cyan:#e0f7f4;--shadow:0 12px 32px rgba(13,58,75,.09)}
+body.landing-ref{background:#f4f8fb;color:#143747}
+.landing-ref .ref-nav{background:rgba(255,255,255,.96);border-bottom:1px solid #dce8ee;box-shadow:0 5px 24px rgba(14,52,70,.05)}
+.landing-ref .ref-hero{background:radial-gradient(ellipse at 78% 20%,#d5f4ee 0,transparent 36%),linear-gradient(135deg,#f8fcff 0%,#eaf7f7 100%);border-radius:0 0 36px 36px}
+.landing-ref .ref-chip{background:#dff5f1;color:#086875;border:1px solid #c8eae4}
+.landing-ref .ref-hero-copy h1 span{color:#07838a}
+.landing-ref .ref-start{background:linear-gradient(135deg,#087f8c,#086875);box-shadow:0 8px 18px #087f8c26}
+.landing-ref .ref-start:hover{filter:brightness(.96);transform:translateY(-1px)}
+.landing-ref .ref-login{border-color:#c5dce3;color:#155269;background:#fff}
+.landing-ref .ref-floating,.landing-ref .ref-shield{box-shadow:0 16px 38px rgba(19,63,78,.13)}
+.landing-ref .ref-how,.landing-ref .ref-features{background:#fff}
+.landing-ref .ref-steps article,.landing-ref .ref-feature-grid article{border:1px solid #e0ebef;border-radius:18px;box-shadow:0 8px 22px rgba(17,61,78,.045);transition:transform .18s,box-shadow .18s}
+.landing-ref .ref-steps article:hover,.landing-ref .ref-feature-grid article:hover{transform:translateY(-3px);box-shadow:0 14px 28px rgba(17,61,78,.09)}
+.landing-ref .ref-safety{border-radius:18px;background:#eaf8f4;border:1px solid #cfece3}
+body.login-page{background:radial-gradient(ellipse at 12% 12%,#d8f5ef 0,transparent 38%),linear-gradient(135deg,#f4f8fb,#eaf3f7)}
+.login-shell{max-width:1220px}
+.login-brand-row{padding-bottom:22px}
+.login-layout{gap:clamp(24px,5vw,68px);align-items:stretch}
+.login-intro{background:linear-gradient(150deg,#103c50,#087f8c);color:#fff;border-radius:26px;padding:clamp(28px,4vw,48px);box-shadow:0 24px 60px rgba(11,62,79,.18)}
+.login-intro p,.login-intro .login-workflow small{color:#d2e8ed}
+.login-intro h1 span{color:#9ce8d9}
+.login-kicker{color:#a8e8dc}
+.login-workflow>div{border-color:#ffffff2b;background:#ffffff0b;border-radius:12px;padding:13px}
+.login-safety{border-color:#ffffff38;background:#ffffff12;border-radius:14px}
+.login-safety small{color:#d2e8ed}
+.login-card{border:1px solid #dce8ed;border-radius:26px;box-shadow:0 24px 70px rgba(16,57,74,.12);padding:clamp(24px,4vw,42px)}
+.login-card h2{letter-spacing:-.035em}
+.login-form input{padding:13px 14px;border-radius:11px;border-color:#d4e2e8}
+.login-form input:focus{border-color:#07838a;box-shadow:0 0 0 4px #07838a18}
+.login-submit{background:linear-gradient(135deg,#087f8c,#086875);border-radius:11px;box-shadow:0 8px 18px #087f8c25}
+.role-card{border:1px solid #dce7ec;border-radius:13px;transition:border-color .18s,background .18s}
+.role-card.active{border-color:#07838a;background:#eaf8f5;box-shadow:0 0 0 2px #07838a14}
+.role-card:hover{border-color:#71bdbb}
+.secure-pill{background:#e8f7f3;color:#087267}
+.login-footer{color:#607987}
+@media(max-width:760px){.login-layout{gap:20px}.login-intro,.login-card{border-radius:18px}.login-workflow{gap:9px}}
