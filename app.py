@@ -1675,7 +1675,7 @@ def _demo_safe_reference(value, case_id):
 
 
 def _demo_safe_value(value, known_name=""):
-    """Best-effort response minimization in demo mode; does not alter stored data."""
+    """Best-effort response minimization in prototype; does not alter stored data."""
     if isinstance(value, str):
         return privacy_minimize_text(value, known_name=known_name)[0]
     if isinstance(value, list):
@@ -2146,6 +2146,9 @@ def patient_portal():
 @app.get("/console")
 @require_role("health_worker", "nurse", "doctor", "medical_officer", "reviewer", "admin")
 def index():
+    # Keep administrator and clinical workspaces separate.
+    if current_user().role == "admin":
+        return redirect(url_for("admin_dashboard"))
     cases = facility_case_query().order_by(Case.created_at.desc()).limit(100).all()
     return render_template("index.html", cases=[serialize_case(c) for c in cases])
 
@@ -2439,7 +2442,7 @@ def triage():
         supplied_identity = f"{patient_name} {address} {symptoms} {report}"
         for label, pattern in pii_patterns.items():
             if re.search(pattern, supplied_identity, re.I):
-                return jsonify(error=f"Demo mode blocks direct identifiers such as {label}. Use synthetic/public sample data only."), 422
+                return jsonify(error=f"prototype blocks direct identifiers such as {label}. Use synthetic/public sample data only."), 422
     if language not in ALLOWED_LANGUAGES:
         return jsonify(error="Unsupported language"), 400
     if scenario not in ALLOWED_SCENARIOS:
@@ -3084,7 +3087,7 @@ def review(cid):
         if not valid_contact_phone(contact_phone):
             msg = "Enter a valid international contact number."
             if DEMO_ONLY_MODE:
-                msg = "Demo mode accepts only the synthetic test number +1-555-010-0100."
+                msg = "prototype accepts only the synthetic test number +1-555-010-0100."
             return jsonify(ok=False, error=msg), 422
         if not contact_consent:
             return jsonify(ok=False, error="Patient/caregiver contact consent is required before initiating contact."), 400
@@ -3166,7 +3169,7 @@ def contact_patient(cid):
     if not valid_contact_phone(phone):
         msg = "A valid contact number is required before calling the patient."
         if DEMO_ONLY_MODE:
-            msg = "Demo mode accepts only the synthetic test number +1-555-010-0100."
+            msg = "prototype accepts only the synthetic test number +1-555-010-0100."
         return jsonify(ok=False, error=msg), 422
     if not c.contact_consent:
         return jsonify(ok=False, error="Contact consent must be recorded before initiating a call."), 400
