@@ -7,9 +7,9 @@ CSS=(ROOT/"static"/"style.css").read_text(encoding="utf-8")
 JS=(ROOT/"static"/"app.js").read_text(encoding="utf-8")
 
 def test_version_and_asset_bust():
-    assert 'APP_VERSION = "11.1.8"' in APP
-    assert '/static/style.css?v=41.0' in INDEX
-    assert '/static/style.css?v=41.0' in HOME
+    assert 'APP_VERSION = "11.1.9"' in APP
+    assert '/static/style.css?v=42.0' in INDEX
+    assert '/static/style.css?v=42.0' in HOME
 
 def test_inline_svg_healthcare_icons_are_present():
     assert 'class="nav-icon icon-dashboard"' in INDEX

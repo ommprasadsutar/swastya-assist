@@ -10,7 +10,7 @@ ADMIN=(ROOT/"templates/admin.html").read_text()
 HOME=(ROOT/"templates/home.html").read_text()
 
 def test_final_release_version_and_responsive_shell():
-    assert 'APP_VERSION = "11.1.8"' in APP
+    assert 'APP_VERSION = "11.1.9"' in APP
     assert '@keyframes uiFadeIn' in CSS
     assert 'mobileNavToggle' in INDEX and 'mobileNavBackdrop' in INDEX
     assert 'mobileNavToggle' in ADMIN and 'mobileNavBackdrop' in ADMIN

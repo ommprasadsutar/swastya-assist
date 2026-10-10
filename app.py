@@ -37,7 +37,7 @@ except Exception:  # pragma: no cover - dependency is part of requirements.txt
     Fernet = None
     InvalidToken = Exception
 
-APP_VERSION = "11.1.8"
+APP_VERSION = "11.1.9"
 BASE = Path(__file__).resolve().parent
 TEST_MODE = os.getenv("SWASTYA_TEST_MODE", "0") == "1"
 load_dotenv(BASE / ".env", override=not TEST_MODE)
@@ -168,12 +168,22 @@ app.config.update(
     REMEMBER_COOKIE_HTTPONLY=True,
 )
 
+RATE_LIMIT_STORAGE_URI = (
+    os.getenv("RATELIMIT_STORAGE_URI", "").strip()
+    or os.getenv("REDIS_URL", "").strip()
+    or os.getenv("REDIS_TLS_URL", "").strip()
+    # Vercel Marketplace integrations expose product variables with a project-specific prefix.
+    or os.getenv("swastya_assist_REDIS_URL", "").strip()
+    or os.getenv("SWASTYA_ASSIST_REDIS_URL", "").strip()
+    or "memory://"
+)
+
 db = SQLAlchemy(app)
 limiter = Limiter(
     key_func=get_remote_address,
     app=app,
     default_limits=["300 per minute"],
-    storage_uri=(os.getenv("RATELIMIT_STORAGE_URI", "").strip() or os.getenv("REDIS_URL", "").strip() or "memory://"),
+    storage_uri=RATE_LIMIT_STORAGE_URI,
 )
 
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
@@ -1653,30 +1663,53 @@ def extract_pdf_text(raw):
         return ""
 
 
+def _demo_safe_reference(value, case_id):
+    """Avoid exposing arbitrary legacy references from a public demo deployment."""
+    if not DEMO_ONLY_MODE:
+        return value
+    candidate = str(value or "").strip()
+    if re.fullmatch(r"(?:SYN|DEMO|OCR)-[A-Z0-9_-]{3,48}", candidate, flags=re.I):
+        return candidate
+    suffix = hashlib.sha256(str(case_id).encode("utf-8")).hexdigest()[:8].upper()
+    return f"DEMO-{suffix}"
+
+
+def _demo_safe_value(value, known_name=""):
+    """Best-effort response minimization in demo mode; does not alter stored data."""
+    if isinstance(value, str):
+        return privacy_minimize_text(value, known_name=known_name)[0]
+    if isinstance(value, list):
+        return [_demo_safe_value(item, known_name=known_name) for item in value]
+    if isinstance(value, dict):
+        return {str(key): _demo_safe_value(item, known_name=known_name) for key, item in value.items()}
+    return value
+
+
 def serialize_case(c, *, include_sensitive=False):
+    known_name = c.patient_name or ""
     payload = {
         "id": c.id,
         "created_at": c.created_at.isoformat(),
         "facility_id": c.facility_id,
         "assigned_to": c.assigned_to,
-        "patient_ref": c.patient_ref,
-        "patient_name": c.patient_name,
+        "patient_ref": _demo_safe_reference(c.patient_ref, c.id) if DEMO_ONLY_MODE else c.patient_ref,
+        "patient_name": "Demo patient" if DEMO_ONLY_MODE else c.patient_name,
         "age": c.age,
         "gender": c.gender,
-        "address": c.address,
+        "address": "Synthetic facility / locality" if DEMO_ONLY_MODE else c.address,
         "consent": c.consent,
-        "report_filename": c.report_filename,
+        "report_filename": ("synthetic-report" if (c.report_data or c.report_path) else "") if DEMO_ONLY_MODE else c.report_filename,
         "report_available": bool(c.report_data) or bool(c.report_path),
         "language": c.language,
-        "symptoms": c.symptoms,
-        "report_text": c.report_text,
-        "ai_note": c.ai_note,
+        "symptoms": _demo_safe_value(c.symptoms, known_name) if DEMO_ONLY_MODE else c.symptoms,
+        "report_text": _demo_safe_value(c.report_text, known_name) if DEMO_ONLY_MODE else c.report_text,
+        "ai_note": _demo_safe_value(c.ai_note, known_name) if DEMO_ONLY_MODE else c.ai_note,
         "risk": c.risk,
         "ai_risk": c.ai_risk or c.risk,
         "final_risk": c.final_risk or c.risk,
-        "risk_override_reason": c.risk_override_reason,
+        "risk_override_reason": _demo_safe_value(c.risk_override_reason, known_name) if DEMO_ONLY_MODE else c.risk_override_reason,
         "status": c.status,
-        "reviewer_note": c.reviewer_note,
+        "reviewer_note": _demo_safe_value(c.reviewer_note, known_name) if DEMO_ONLY_MODE else c.reviewer_note,
         "source": c.source,
         "scenario": c.scenario,
         "reviewed_by": c.reviewed_by,
@@ -1685,17 +1718,17 @@ def serialize_case(c, *, include_sensitive=False):
         "consent_timestamp": c.consent_timestamp.isoformat() if c.consent_timestamp else None,
         "consent_language": c.consent_language,
         "referral_status": c.referral_status,
-        "referral_destination": c.referral_destination,
-        "evidence_review": c.evidence_review or [],
-        "follow_up_answers": c.follow_up_answers or [],
+        "referral_destination": _demo_safe_value(c.referral_destination, known_name) if DEMO_ONLY_MODE else c.referral_destination,
+        "evidence_review": _demo_safe_value(c.evidence_review or [], known_name) if DEMO_ONLY_MODE else (c.evidence_review or []),
+        "follow_up_answers": _demo_safe_value(c.follow_up_answers or [], known_name) if DEMO_ONLY_MODE else (c.follow_up_answers or []),
         "processing_mode": c.processing_mode or "AI",
     }
     if include_sensitive:
         payload.update({
-            "contact_phone": c.contact_phone or "",
-            "contact_consent": bool(c.contact_consent),
-            "contact_consented_at": c.contact_consented_at.isoformat() if c.contact_consented_at else None,
-            "contact_attempts": c.contact_attempts or [],
+            "contact_phone": "" if DEMO_ONLY_MODE else (c.contact_phone or ""),
+            "contact_consent": False if DEMO_ONLY_MODE else bool(c.contact_consent),
+            "contact_consented_at": None if DEMO_ONLY_MODE else (c.contact_consented_at.isoformat() if c.contact_consented_at else None),
+            "contact_attempts": [] if DEMO_ONLY_MODE else (c.contact_attempts or []),
         })
     return payload
 
@@ -1933,7 +1966,7 @@ def security_headers(resp):
 @app.context_processor
 def globals_ctx():
     u = current_user()
-    return {"current_user": u, "disclaimer": DISCLAIMER, "csrf_token": session.get("csrf_token", "")}
+    return {"current_user": u, "disclaimer": DISCLAIMER, "csrf_token": session.get("csrf_token", ""), "demo_only_mode": DEMO_ONLY_MODE}
 
 
 @app.get("/healthz")
@@ -1951,8 +1984,18 @@ def readiness_checks():
     checks["secret"] = bool(os.getenv("FLASK_SECRET_KEY")) or not RUNNING_ON_VERCEL
     checks["encryption"] = bool(os.getenv("DATA_ENCRYPTION_KEY")) or not RUNNING_ON_VERCEL
     checks["persistent_db"] = bool(RAW_DATABASE_URL) if RUNNING_ON_VERCEL else True
-    rate_store = (os.getenv("RATELIMIT_STORAGE_URI", "").strip() or os.getenv("REDIS_URL", "").strip() or "memory://").lower()
-    checks["rate_limit_store"] = (not rate_store.startswith("memory://")) if RUNNING_ON_VERCEL else True
+    rate_store = RATE_LIMIT_STORAGE_URI.lower()
+    if not RUNNING_ON_VERCEL:
+        checks["rate_limit_store"] = True
+    elif rate_store.startswith(("redis://", "rediss://")):
+        try:
+            # Check the configured backend, not merely the presence of a URL.
+            checks["rate_limit_store"] = bool(limiter.limiter.storage.check())
+        except Exception:
+            log.warning("Configured rate-limit storage failed its readiness check")
+            checks["rate_limit_store"] = False
+    else:
+        checks["rate_limit_store"] = False
     checks["cron_secret"] = bool(os.getenv("CRON_SECRET", "").strip()) if RUNNING_ON_VERCEL else True
     checks["admin_config"] = bool(os.getenv("ADMIN_USERNAME", "").strip()) and bool(os.getenv("ADMIN_PASSWORD", "").strip()) if RUNNING_ON_VERCEL else True
     checks["login_csrf_secret"] = bool(os.getenv("LOGIN_CSRF_SECRET", "").strip()) if RUNNING_ON_VERCEL else True
@@ -2693,6 +2736,60 @@ def case_report(cid):
     if not c:
         return jsonify(error="Not found"), 404
     audit("case_report_opened", cid)
+
+    # The public demo must never stream a stored source report directly. Build a
+    # local OCR-inspected derivative and fail closed if redaction or identity
+    # verification cannot be completed; do not call Gemini from this endpoint.
+    if DEMO_ONLY_MODE:
+        raw = bytes(c.report_data) if c.report_data else b""
+        source_path = None
+        source_name = c.report_filename or ""
+        if not raw and c.report_path:
+            source_path = Path(c.report_path).resolve()
+            try:
+                source_path.relative_to(UPLOADS.resolve())
+            except ValueError:
+                return jsonify(error="Invalid report location"), 400
+            if source_path.is_file():
+                try:
+                    raw = source_path.read_bytes()
+                except OSError:
+                    raw = b""
+                source_name = source_name or source_path.name
+        if not raw:
+            return jsonify(error="Report file is no longer available"), 404
+        mime = (c.report_mime or "").strip().lower()
+        if mime not in ALLOWED_REPORT_TYPES:
+            suffix = Path(source_name).suffix.lower()
+            mime = {".pdf": "application/pdf", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg"}.get(suffix, "")
+        try:
+            redacted = redact_document_for_ai(raw, mime, c.patient_name or "")
+        except RedactionError:
+            audit("privacy_gate_report_preview_blocked", cid, metadata={"reason": "local_redaction_failed"})
+            return jsonify(
+                error="A privacy-safe report preview could not be produced. The original report was not served.",
+                code="REPORT_PREVIEW_REDACTION_FAILED",
+            ), 422
+        if not patient_name_matches_report(c.patient_name or "", redacted.detected_report_name):
+            audit("privacy_gate_report_preview_blocked", cid, metadata={"reason": "report_identity_unverified"})
+            return jsonify(
+                error="The report identity could not be verified against this case. The original report was not served.",
+                code="REPORT_IDENTITY_UNVERIFIED",
+            ), 422
+        audit("privacy_gate_redacted_report_preview_served", cid, metadata={
+            "pages": redacted.pages,
+            "redacted_lines": redacted.redacted_lines,
+            "source_media_sent": False,
+        })
+        filename = "redacted-report.pdf" if redacted.mime_type == "application/pdf" else "redacted-report.jpg"
+        return send_file(
+            io.BytesIO(redacted.data),
+            mimetype=redacted.mime_type,
+            download_name=filename,
+            as_attachment=False,
+            max_age=0,
+        )
+
     if c.report_data:
         return send_file(io.BytesIO(c.report_data), mimetype=c.report_mime or "application/octet-stream", download_name=c.report_filename or "report", as_attachment=False, max_age=0)
     if c.report_path:
@@ -2718,27 +2815,27 @@ def case_packet(cid):
         packet={
             "title": "Swastya Assist Reviewer Packet",
             "patient": {
-                "reference": c.patient_ref, "name": c.patient_name, "age": c.age,
+                "reference": _demo_safe_reference(c.patient_ref, c.id) if DEMO_ONLY_MODE else c.patient_ref, "name": "Demo patient" if DEMO_ONLY_MODE else c.patient_name, "age": c.age,
                 "gender": c.gender, "language": c.language, "scenario": c.scenario,
             },
-            "inputs": {"symptoms": c.symptoms, "report_text": c.report_text, "report_filename": c.report_filename},
-            "ai": n,
+            "inputs": {"symptoms": _demo_safe_value(c.symptoms, c.patient_name) if DEMO_ONLY_MODE else c.symptoms, "report_text": _demo_safe_value(c.report_text, c.patient_name) if DEMO_ONLY_MODE else c.report_text, "report_filename": "synthetic-report" if DEMO_ONLY_MODE and c.report_filename else c.report_filename},
+            "ai": _demo_safe_value(n, c.patient_name) if DEMO_ONLY_MODE else n,
             "risk": c.risk,
             "status": c.status,
-            "reviewer_note": c.reviewer_note,
+            "reviewer_note": _demo_safe_value(c.reviewer_note, c.patient_name) if DEMO_ONLY_MODE else c.reviewer_note,
             "reviewer": c.reviewed_by,
             "reviewed_at": c.reviewed_at.isoformat() if c.reviewed_at else None,
         "consent_version": c.consent_version,
         "consent_timestamp": c.consent_timestamp.isoformat() if c.consent_timestamp else None,
         "consent_language": c.consent_language,
         "referral_status": c.referral_status,
-        "referral_destination": c.referral_destination,
-        "evidence_review": c.evidence_review or [],
-        "follow_up_answers": c.follow_up_answers or [],
+        "referral_destination": _demo_safe_value(c.referral_destination, c.patient_name) if DEMO_ONLY_MODE else c.referral_destination,
+        "evidence_review": _demo_safe_value(c.evidence_review or [], c.patient_name) if DEMO_ONLY_MODE else (c.evidence_review or []),
+        "follow_up_answers": _demo_safe_value(c.follow_up_answers or [], c.patient_name) if DEMO_ONLY_MODE else (c.follow_up_answers or []),
         "processing_mode": c.processing_mode or "AI",
-        "contact_phone": c.contact_phone or "",
-        "contact_consent": bool(c.contact_consent),
-        "contact_attempts": c.contact_attempts or [],
+        "contact_phone": "" if DEMO_ONLY_MODE else (c.contact_phone or ""),
+        "contact_consent": False if DEMO_ONLY_MODE else bool(c.contact_consent),
+        "contact_attempts": [] if DEMO_ONLY_MODE else (c.contact_attempts or []),
             "disclaimer": DISCLAIMER,
         }
     )

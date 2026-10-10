@@ -26,7 +26,7 @@ def test_voice_translation_is_editable_and_cached():
     assert "$('liveTranscript').value" in JS
 
 def test_visual_refresh_and_phone_touch_targets_present():
-    assert '--blue:#1769aa' in CSS
+    assert '--blue:#176b87' in CSS
     assert 'class="nav-icon' in INDEX
     assert 'min-height:44px' in CSS
-    assert '/static/style.css?v=41.0' in INDEX
+    assert '/static/style.css?v=42.0' in INDEX
