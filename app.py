@@ -2736,6 +2736,60 @@ def case_report(cid):
     if not c:
         return jsonify(error="Not found"), 404
     audit("case_report_opened", cid)
+
+    # The public demo must never stream a stored source report directly. Build a
+    # local OCR-inspected derivative and fail closed if redaction or identity
+    # verification cannot be completed; do not call Gemini from this endpoint.
+    if DEMO_ONLY_MODE:
+        raw = bytes(c.report_data) if c.report_data else b""
+        source_path = None
+        source_name = c.report_filename or ""
+        if not raw and c.report_path:
+            source_path = Path(c.report_path).resolve()
+            try:
+                source_path.relative_to(UPLOADS.resolve())
+            except ValueError:
+                return jsonify(error="Invalid report location"), 400
+            if source_path.is_file():
+                try:
+                    raw = source_path.read_bytes()
+                except OSError:
+                    raw = b""
+                source_name = source_name or source_path.name
+        if not raw:
+            return jsonify(error="Report file is no longer available"), 404
+        mime = (c.report_mime or "").strip().lower()
+        if mime not in ALLOWED_REPORT_TYPES:
+            suffix = Path(source_name).suffix.lower()
+            mime = {".pdf": "application/pdf", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg"}.get(suffix, "")
+        try:
+            redacted = redact_document_for_ai(raw, mime, c.patient_name or "")
+        except RedactionError:
+            audit("privacy_gate_report_preview_blocked", cid, metadata={"reason": "local_redaction_failed"})
+            return jsonify(
+                error="A privacy-safe report preview could not be produced. The original report was not served.",
+                code="REPORT_PREVIEW_REDACTION_FAILED",
+            ), 422
+        if not patient_name_matches_report(c.patient_name or "", redacted.detected_report_name):
+            audit("privacy_gate_report_preview_blocked", cid, metadata={"reason": "report_identity_unverified"})
+            return jsonify(
+                error="The report identity could not be verified against this case. The original report was not served.",
+                code="REPORT_IDENTITY_UNVERIFIED",
+            ), 422
+        audit("privacy_gate_redacted_report_preview_served", cid, metadata={
+            "pages": redacted.pages,
+            "redacted_lines": redacted.redacted_lines,
+            "source_media_sent": False,
+        })
+        filename = "redacted-report.pdf" if redacted.mime_type == "application/pdf" else "redacted-report.jpg"
+        return send_file(
+            io.BytesIO(redacted.data),
+            mimetype=redacted.mime_type,
+            download_name=filename,
+            as_attachment=False,
+            max_age=0,
+        )
+
     if c.report_data:
         return send_file(io.BytesIO(c.report_data), mimetype=c.report_mime or "application/octet-stream", download_name=c.report_filename or "report", as_attachment=False, max_age=0)
     if c.report_path:
@@ -2775,9 +2829,9 @@ def case_packet(cid):
         "consent_timestamp": c.consent_timestamp.isoformat() if c.consent_timestamp else None,
         "consent_language": c.consent_language,
         "referral_status": c.referral_status,
-        "referral_destination": c.referral_destination,
-        "evidence_review": c.evidence_review or [],
-        "follow_up_answers": c.follow_up_answers or [],
+        "referral_destination": _demo_safe_value(c.referral_destination, c.patient_name) if DEMO_ONLY_MODE else c.referral_destination,
+        "evidence_review": _demo_safe_value(c.evidence_review or [], c.patient_name) if DEMO_ONLY_MODE else (c.evidence_review or []),
+        "follow_up_answers": _demo_safe_value(c.follow_up_answers or [], c.patient_name) if DEMO_ONLY_MODE else (c.follow_up_answers or []),
         "processing_mode": c.processing_mode or "AI",
         "contact_phone": "" if DEMO_ONLY_MODE else (c.contact_phone or ""),
         "contact_consent": False if DEMO_ONLY_MODE else bool(c.contact_consent),
