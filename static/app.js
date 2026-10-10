@@ -67,7 +67,7 @@ function showView(view) {
   qsa('.view').forEach(x => x.classList.remove('active'));
   target.classList.add('active');
   qsa('.nav').forEach(x => x.classList.toggle('active', x.dataset.view === view));
-  if ($('pageTitle')) $('pageTitle').textContent = 'Clinical Console';
+  if ($('pageTitle')) $('pageTitle').textContent = document.body?.dataset.userRole === 'admin' ? 'Admin Console' : 'Clinical Console';
   if (view === 'dashboard') loadDashboard();
   if (view === 'analytics') loadAnalytics();
   if (view === 'ocr') checkGemini();
